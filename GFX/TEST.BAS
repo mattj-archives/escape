@@ -1,0 +1,30 @@
+DIM u%(209)
+SCREEN 13
+OPEN "C:\ESCAPE\GFX\LUP.GFX" FOR INPUT AS #1
+RSL:
+ON ERROR GOTO E
+INPUT #1, J, K, C
+PSET (J, K), C
+GOTO RSL
+E:
+RESUME 12
+12 CLOSE
+GET (0, 0)-(10, 7), u%
+CLS
+LINE (0, 108)-(320, 108), 32
+m:
+FOR z = 1 TO 110
+PUT (z, 100), u%, PSET
+FOR p = 1 TO 2500: NEXT
+'PUT (z, 100), u%, XOR
+LINE (z, 100)-(z + 10, 107), 0, BF
+NEXT
+
+FOR z = 110 TO 0 STEP -1
+PUT (z, 100), u%, PSET
+FOR p = 1 TO 2500: NEXT
+'PUT (z, 100), u%, XOR
+LINE (z, 100)-(z + 10, 107), 0, BF
+NEXT
+GOTO m
+

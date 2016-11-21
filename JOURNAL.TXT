@@ -1,0 +1,153 @@
+Escape development log book
+
+Tuesday, June 22, 1999
+-Finished the second game intro (first one was no good)
+
+Friday, June 25, 1999
+-Drew the graphics
+-Started testing the graphics
+
+Saturday, June 26, 1999
+-Drew some more graphics
+-Did level 1
+-Started game coding for lasers, character movement, and force feilds
+-Most frustrating day so far - doing the CB-in-the-computer-terminal
+ routine.
+
+Sunday, June 27, 1999
+-Did level 2
+-Further coding for game - die, Use CB, shoot laser, get hit by laser, etc.
+-Added sound effects -- FF on, FF off, Laser on, Laser off
+-Started level 3
+ESCAPE.BAS size: 17,911
+
+Monday, June 28, 1999
+-Worked on level 3
+
+Tuesday, June 29, 1999
+-Fininshed level 3
+-Did level 4
+-File error!!! Level 3 partly destroyed!!!
+-Fixed level 3
+ESCAPE.BAS size: 18,390
+
+Wednesday, June 30, 1999
+-Did level 5
+-Added QLC routines and QLC sound FX
+-Added more to force feild routine
+-Did level 6
+-Did level 7 - bug to fix for tomorrow
+ESCAPE.BAS size: 23,287
+
+Thursday, July 1, 1999
+-Fixed bug in the computer terminal routine
+-Fixed huge bug in QLC routine
+-Pass level graphic slightly changed
+-Did level 8
+-Did level 9
+-Played around with an alternate intro (number 3 !!!)
+ESCAPE.BAS size: 23,433
+
+Friday, July 2, 1999
+-Did "The Unbeatable Level" level 31
+-Started level 10
+
+Saturday, July 3, 1999
+--
+
+Sunday, July 4, 1999
+-Finished level 10
+-Fixed up main coding to fit level 10
+ESCAPE.BAS size: 23,701
+
+Sunday, July 5, 1999--Monday, July 12, 1999
+-Took a real long break here... Now, on to level 11...
+
+Tuesday, July 13, 1999
+-Started on level 11
+
+Wednesday, July 14, 1999
+-Finished level 11
+-Started level 12
+
+Thursday, July 15, 1999
+-Finished level 12
+
+Friday, July 16,1999--Sunday, July 18, 1999
+--
+
+Monday, July 19, 1999
+-Started and worked on level 13
+
+Tuesday, July 20, 1999
+-Finished level 13
+
+Wednesday, July 21, 1999
+-Started on level 14... this will take a while...
+
+Thursday, July 22, 1999
+-Finished level 14
+
+Friday, July 23, 1999
+-Did level 15
+
+Saturday, July 24, 1999
+-Did level 16
+-Fixed up ESCAPE.BAS to fit level 16
+-Did level 17
+-Fixed up ESCAPE.BAS to fit level 17
+ESCAPE.BAS size: 23,998
+
+Sunday, July 25, 1999      *******One month!*******
+-Did level 18
+-Started level 19
+
+-Monday, July 26, 1999--Friday, July 30, 1999
+--
+
+Saturday, July 31, 1999                         Countdown: 15 days
+-Finished level 19
+-Did level 20
+-Did about half of level 21
+
+Sunday, August 1, 1999                          Countdown: 14 days
+-Finished level 21
+-Did level 22
+-Did level 23
+-Did level 24
+
+Monday, August 2, 1999                          Countdown: 13 days
+-Did level 25
+-Did level 26
+-Did level 27
+-Did level 28
+-Did level 29
+-Did level 30
+-Did level 32, or practice level 1
+-Did level 33, or practice level 2
+-Did level 34, or practice level 3
+-^Talk about productive!!! 9 levels!!!
+-Did some of the level pass routine
+
+Tuesday, August 3, 1999                         Countdown: 12 days
+-Did level pass routine
+-Added code feature to pass level
+-Fixed up menu system
+-Started online instruction manual
+-ESCAPE.BAS size: 27,088
+
+Wednesday, August 4, 1999                       Countdown: 11 days
+-More misc. stuff
+
+Thursday, August 5, 1999                        Countdown: 10 days
+-
+
+Friday, August 6, 1999                          Countdown: 9 days
+-
+
+Saturday, August 6, 1999                        Countdown: 8 days
+-I think I've finally finished the main game
+-Did intro
+-Did Install routine
+-Put game to disk
+-Game is basically done--ready for simple installations
