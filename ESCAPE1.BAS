@@ -313,11 +313,12 @@ END SUB
 
 SUB FinishGame
 CLS
+SavedData.bonusLevels(1) = 1
+
 FO 10, 1, "Well done, you beat this game..."
 FO 11, 1, "The Unbeatable Level is now"
 FO 12, 1, "accessable..."
-
-SavedData.bonusLevels(4) = 1
+WaitForKey
 Running = 0
 
 END SUB
@@ -901,6 +902,7 @@ IF UCASE$(a$) = "Q" THEN
         MenuChoice% = 5
         EXIT SUB
 END IF
+
 IF a$ = CHR$(13) OR a$ = " " THEN GOTO MenuRet
 IF a$ = "+" AND M = 1 THEN lwk = 1: GOTO MenuRet
 LOOP
@@ -1158,7 +1160,12 @@ LevelStart = 34: LWW = 1
 END IF
 
 CASE 4
-IF MID$(temp$, 4, 1) = "0" THEN
+finishCount% = 0
+FOR i% = 1 TO 4
+ IF SavedData.bonusLevels(i%) > 0 THEN finishCount% = finishCount% + 1
+NEXT
+
+IF finishCount% <> 4 THEN
 FO 20, 1, "You must complete all 30 levels, and the"
 FO 21, 1, "practice levels to go here."
 FO 22, 1, "Press a key..."
