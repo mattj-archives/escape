@@ -1,33 +1,52 @@
+DECLARE FUNCTION Menu.GetInpt! (te$)
+DECLARE FUNCTION Menu.GetFName! ()
+DECLARE SUB Menu.Special ()
+DECLARE SUB Menu ()
 DECLARE SUB FO (x, y, t$)
 DECLARE FUNCTION GetInpt! (te$)
 DECLARE FUNCTION GenInpt (te$)
 DECLARE SUB Special ()
 DECLARE FUNCTION GetFName! ()
 DECLARE SUB PE ()
-IF COMMAND$ = "RFB101E1" THEN GOTO RSWP ELSE PRINT "Run ESCAPE.BAT": SYSTEM
 
+SCREEN 13
+
+DIM SHARED MenuChoice%, MenuLevelWarp%
+
+Menu
+
+
+SUB FO (tx, ty, t$)
+FOR Z = 16 TO 31
+        LOCATE tx, ty: COLOR Z: PRINT t$
+        t = TIMER: WHILE TIMER - t < .001: WEND
+NEXT
+
+END SUB
+
+SUB Menu
+MenuLevelWarp% = 1
 RSWP:
 DIM AR%(200)
 DIM SN$(0 TO 9)
 DIM SL(0 TO 9)
 DIM SH(0 TO 9)
+DIM MenuNames(1 TO 5) AS STRING
+DIM MenuHelp(1 TO 5) AS STRING
 
-SCREEN 13: WIDTH 40, 25
-DIM SHARED LWFLAG
-DIM SHARED LEVELSTART
 '***************************
 M = 1                     '*
-M$(1) = "Play Game"
-M$(2) = "Load Game"
-M$(3) = "Special"
-M$(4) = "Read This!!!"
-M$(5) = "Quit"
+MenuNames(1) = "Play Game"
+MenuNames(2) = "Load Game"
+MenuNames(3) = "Special"
+MenuNames(4) = "Read This!!!"
+MenuNames(5) = "Quit"
 
-H$(1) = "Starts a new game"
-H$(2) = "Loads a saved game"
-H$(3) = "Special/Practice level accsess"
-H$(4) = "Instructions"
-H$(5) = "Quits the game"
+MenuHelp(1) = "Starts a new game"
+MenuHelp(2) = "Loads a saved game"
+MenuHelp(3) = "Special/Practice level accsess"
+MenuHelp(4) = "Instructions"
+MenuHelp(5) = "Quits the game"
 
 AY = 73         '*
 GOSUB PutArrow            '*
@@ -39,22 +58,27 @@ CLS
 Main2:
 PUT (60, AY), AR%, XOR
 FOR PM = 1 TO 5
-IF PM = M THEN LOCATE PM + 9, 10: COLOR 14: PRINT M$(PM)
-IF PM <> M THEN LOCATE PM + 9, 10: COLOR 32: PRINT M$(PM)
+IF PM = M THEN LOCATE PM + 9, 10: COLOR 14: PRINT MenuNames(PM)
+IF PM <> M THEN LOCATE PM + 9, 10: COLOR 32: PRINT MenuNames(PM)
 NEXT
-LOCATE 20, 1: PRINT STRING$(40, " "): COLOR 7: LOCATE 20, 1: PRINT H$(M)
+LOCATE 20, 1: PRINT STRING$(40, " "): COLOR 7: LOCATE 20, 1: PRINT MenuHelp(M)
 
 '*****************************************************
-RSI:
+DO
 a$ = INKEY$
-IF a$ = CHR$(0) + "H" THEN GOTO MenuUp
-IF a$ = CHR$(0) + "P" THEN GOTO MenuDown
+IF a$ = CHR$(0) + "H" THEN
+        IF M > 1 THEN GOTO MenuUp
+END IF
+
+IF a$ = CHR$(0) + "P" THEN
+        IF M < 5 THEN GOTO MenuDown
+END IF
 IF a$ = CHR$(13) OR a$ = " " THEN GOTO MenuRet
 IF a$ = "+" AND M = 1 THEN lwk = 1: GOTO MenuRet
-GOTO RSI
+LOOP
+
 '*****************************************************
 MenuUp:
-IF M - 1 = 0 THEN GOTO RSI
 PUT (60, AY), AR%, XOR
 td = 2: c = 31
 FOR MA = 1 TO 8
@@ -67,14 +91,13 @@ FOR MA = 1 TO 8
 
 pl1:
 COLOR c
-IF td = 2 THEN LOCATE 20, 1: PRINT H$(M) ELSE LOCATE 20, 1: PRINT H$(M - 1)
+IF td = 2 THEN LOCATE 20, 1: PRINT MenuHelp(M) ELSE LOCATE 20, 1: PRINT MenuHelp(M - 1)
 NEXT
 M = M - 1
 GOTO Main2
 
 MenuDown:
 td = 2: c = 31
-IF M + 1 >= 6 THEN GOTO RSI
 PUT (60, AY), AR%, XOR
 FOR MA = 1 TO 8
         AY = AY + 1
@@ -86,50 +109,44 @@ FOR MA = 1 TO 8
 
 pl2:
 COLOR c
-IF td = 2 THEN LOCATE 20, 1: PRINT H$(M) ELSE LOCATE 20, 1: PRINT H$(M + 1)
+IF td = 2 THEN LOCATE 20, 1: PRINT MenuHelp(M) ELSE LOCATE 20, 1: PRINT MenuHelp(M + 1)
 NEXT
 M = M + 1
 GOTO Main2
+
 MenuRet:
+FOR Z = 31 TO 16 STEP -1
+        LOCATE 9 + M, 10: COLOR Z: PRINT MenuNames(M)
+        t = TIMER: WHILE TIMER - t < .001: WEND
+NEXT
+CLS
+
+MenuChoice% = M
 IF M = 1 THEN GOTO PlayGame
 IF M = 2 THEN GOTO LoadGame
-IF M = 3 THEN Special: GOTO Main
+IF M = 3 THEN Menu.Special: GOTO Main
 IF M = 4 THEN GOTO ReadThis
 IF M = 5 THEN GOTO Quit
 '**********************************PLAY GAME
 PlayGame:
-FOR Z = 31 TO 16 STEP -1
-        LOCATE 10, 10: COLOR Z: PRINT "Play Game"
-        t = TIMER: WHILE TIMER - t < .001: WEND
-NEXT
-CLS
 COLOR 32
-IF lwk <> 1 THEN LEVELSTART = 1 ELSE INPUT "Level warp 1-34>>>"; LEVELSTART
-OPEN "LW.CHK" FOR OUTPUT AS #1: PRINT #1, LEVELSTART: CLOSE
-OPEN "PG.FLG" FOR OUTPUT AS #1
-PRINT #1, "FLAG ON"
-CLOSE
-SYSTEM
+IF lwk <> 1 THEN MenuLevelWarp% = 1 ELSE INPUT "Level warp 1-34>>>"; MenuLevelWarp%
+EXIT SUB
 '**********************************LOAD GAME
 LoadGame:
-FOR Z = 31 TO 16 STEP -1
-        LOCATE 11, 10: COLOR Z: PRINT "Load Game"
-        t = TIMER: WHILE TIMER - t < .001: WEND
-NEXT
-CLS
 COLOR 32
 '***********
 OPEN "gfx\sm.gfx" FOR INPUT AS #1
-COLOR 32: LOCATE 1, 1: PRINT "#"; "   Name"; "      Level"; "      Health"
+COLOR 32: LOCATE 1, 1: PRINT "#"; "   Name"; "      Level";
 FOR SI = 0 TO 9
 INPUT #1, null, SN$(SI), SL(SI), SH(SI)
-LOCATE SI + 2, 1: PRINT SI; SN$(SI); "    "; SL(SI); "       "; SH(SI)
+LOCATE SI + 2, 1: PRINT SI; SN$(SI); "    "; SL(SI); "       "
 NEXT
 CLOSE
 '***********
 ReStartLoad:
 LOCATE 17, 1: COLOR 32: PRINT "ENTER 99 TO EXIT"
-FB = GetFName
+FB = Menu.GetFName
 IF FB = 99 THEN CLOSE : GOTO QL
 IF FB < 0 OR FB > 9 THEN BEEP: GOTO ReStartLoad
 IF SN$(FB) = "*Nothing" THEN BEEP: GOTO ReStartLoad
@@ -153,21 +170,9 @@ SYSTEM
 '***********************************************PASSWORD
 
 ReadThis:
-FOR Z = 31 TO 16 STEP -1
-        LOCATE 13, 10: COLOR Z: PRINT "Read This!!!"
-        t = TIMER: WHILE TIMER - t < .001: WEND
-NEXT
-CLS
-OPEN "RDI.CHK" FOR OUTPUT AS #1: PRINT #1, "FLAG ON": CLOSE
-SYSTEM
-GOTO RSWP
+EXIT SUB
 
 Quit:
-FOR Z = 31 TO 16 STEP -1
-        LOCATE 14, 10: COLOR Z: PRINT "Quit"
-        t = TIMER: WHILE TIMER - t < .001: WEND
-NEXT
-CLS
 COLOR 4
 PRINT "QUIT??!!!! TYPE Y OR N"
 QUITLOOP:
@@ -203,15 +208,9 @@ PSET (3, 1), 35: PSET (3, 3), 35: PSET (4, 2), 36
 GET (0, 0)-(5, 5), AR%
 RETURN
 
-SUB FO (tx, ty, t$)
-FOR Z = 16 TO 31
-        LOCATE tx, ty: COLOR Z: PRINT t$
-        t = TIMER: WHILE TIMER - t < .001: WEND
-NEXT
-
 END SUB
 
-FUNCTION GetFName
+FUNCTION Menu.GetFName
 LOCATE 16, 11: PRINT STRING$(29, " ")
 tcol = 11
 t$ = ""
@@ -239,14 +238,14 @@ LOCATE 16, tcol: PRINT " "
 tcol = tcol - 1
 
 CASE CHR$(13)
-GetFName = VAL(t$)
+Menu.GetFName = VAL(t$)
 EXIT FUNCTION
 END SELECT
 GOTO mm
 
 END FUNCTION
 
-FUNCTION GetInpt (te$)
+FUNCTION Menu.GetInpt (te$)
 LOCATE 8, 1: PRINT STRING$(40, " ")
 tcol = LEN(te$) + 1
 mtc = tcol
@@ -275,19 +274,14 @@ LOCATE 8, tcol: PRINT " "
 tcol = tcol - 1
 
 CASE CHR$(13)
-GetInpt = VAL(t$)
+Menu.GetInpt = VAL(t$)
 EXIT FUNCTION
 END SELECT
 GOTO mm2
 
 END FUNCTION
 
-SUB Special
-FOR Z = 31 TO 16 STEP -1
-        LOCATE 12, 10: COLOR Z: PRINT "Special"
-        t = TIMER: WHILE TIMER - t < .001: WEND
-NEXT
-CLS
+SUB Menu.Special
 COLOR 2: LOCATE 9, 1: PRINT "Type 99 to exit"
 COLOR 14: LOCATE 1, 1: PRINT "Special levels:": PRINT
 OPEN "game.dat" FOR INPUT AS #1
@@ -303,7 +297,7 @@ IF MID$(temp$, 3, 1) = "0" THEN LOCATE 5: COLOR 8: PRINT "3-Practice level 3"
 IF MID$(temp$, 4, 1) = "0" THEN LOCATE 6: COLOR 8: PRINT "4-The Unbeatable Level (31)"
 
 rsp:
-ts = GetInpt("Select 1-4>")
+ts = Menu.GetInpt("Select 1-4>")
 IF ts = 99 THEN EXIT SUB
 IF ts < 1 OR ts > 4 THEN BEEP: GOTO rsp
 
