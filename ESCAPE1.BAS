@@ -1,3 +1,15 @@
+DECLARE SUB KeyboardOn ()
+DECLARE SUB WaitForKeyOld ()
+DECLARE SUB Menu ()
+DECLARE FUNCTION Menu.GetFName! ()
+DECLARE FUNCTION Menu.GetInpt! (te$)
+DECLARE SUB Menu.Special ()
+DECLARE SUB Intro ()
+DECLARE FUNCTION Intro.ShortWait! (delay AS SINGLE)
+DECLARE SUB WaitVSync ()
+DECLARE SUB SaveSavedData ()
+DECLARE SUB WaitForKey ()
+DECLARE SUB KeyboardInit ()
 DECLARE SUB GameOver ()
 DECLARE SUB ShutDown ()
 DECLARE SUB SndCtrl ()
@@ -6,7 +18,6 @@ DECLARE SUB FO (tx!, ty!, t$)
 DECLARE SUB KeyInpt (t$)
 DECLARE SUB ShowCodes (t)
 DECLARE SUB LoadStat ()
-DECLARE SUB FFUpdate ()
 DECLARE SUB BeatUB ()
 DECLARE SUB FinishGame ()
 DECLARE SUB FinishPL (t!)
@@ -37,7 +48,12 @@ DECLARE SUB UpdateLaser ()
 DECLARE SUB LGFX ()
 DECLARE SUB SetItems ()
 DECLARE SUB SetFreeItems ()
-DECLARE SUB LevelSet (LevelNum)
+DECLARE SUB LevelSet (LevelNum AS INTEGER)
+
+' External
+DECLARE SUB KeyboardEnable
+DECLARE SUB KeyboardDisable
+DECLARE SUB KeyboardLibInit (BYVAL arraySeg%, BYVAL arrayOffs%, BYVAL prevArraySeg%, BYVAL prevArrayOffs%)
 '***********************************************************
 '*              E S C A P E   1.0                         '*
 '***********************************************************
@@ -97,7 +113,20 @@ typ AS INTEGER
 num AS INTEGER
 END TYPE
 
-DIM SHARED Keys(6), KeyTyp(6)
+TYPE TSaveGame
+ name AS STRING * 80
+ Level AS INTEGER
+END TYPE
+
+TYPE TSavedData
+ ' 0 = Can't access
+ ' 1 = Can access, not finished
+ ' 2 = Finished
+ bonusLevels(1 TO 4) AS INTEGER
+ saveGames(1 TO 4) AS TSaveGame
+END TYPE
+
+DIM SHARED keys(6), KeyTyp(6)
 DIM SHARED KeyX(6), KeyY(6)
 DIM SHARED FF(20) AS f
 DIM SHARED obj AS o, FFN, FFNum(20)       'type*num
@@ -107,40 +136,69 @@ DIM SHARED minicomp(10) AS mcomp
 DIM SHARED Lasers, tempmcomp
 DIM SHARED LaserTyp(20), LaserNum(20)
 DIM SHARED dir, frame, framecount: frame = 0: framecount = 0
-DIM SHARED x, y, Level
+DIM SHARED x, y
+DIM SHARED Level%
 DIM SHARED lft, ltime: lft = .05
 DIM SHARED health, ht: health = 100
 DIM SHARED msg, msgt
 DIM SHARED StartX, StartY, StartDir
 DIM SHARED q(4) AS qd
 DIM SHARED qx(4, 15), qy(4, 15), qs(4, 4), qsx(4, 4), qsy(4, 4), qdl
-DIM SHARED mf, s1, lf, ffu, code$, sfx, mainpause: mf = 0: sfx = 1
+DIM SHARED mf, s1, lf, ffu, sfx, mainpause: mf = 0: sfx = 1
 DIM SHARED ilk$(6), Lives: Lives = 3
+
+DIM SHARED kb(128) AS INTEGER
+DIM SHARED prevKeys(128) AS INTEGER
+
+DIM SHARED SavedData AS TSavedData
+
+DIM SHARED MenuChoice%, MenuLevelWarp%
+
+' Is level running?
+DIM SHARED Running AS INTEGER: Running = 1
+
+ON ERROR RESUME NEXT
+DEF SEG = VARSEG(SavedData)
+BLOAD "game.dat", VARPTR(SavedData)
+DEF SEG
+
 'qs=shot flag
-MainStart:
-'************************Others
-'Warp code: /LWCDE10E1
-IF LEFT$(COMMAND$, 10) <> "/LWCDE10E1" THEN
- SCREEN 0, 0, 0: PRINT "Plese run ESCAPE.BAT"
-SYSTEM
-END IF
-'Level = 30
-mainpause = 70
-'***********************************************************
+Level% = 31
+
 SCREEN 13
 LGFX
-LoadStat
-SetItems
-LevelIntro
-'Level = 1
-LevelSet Level
-MainLoop
+KeyboardInit
+Intro
+
+DO
+        Menu
+        SELECT CASE MenuChoice%
+        CASE 1:
+                SetItems
+                Level% = MenuLevelWarp%
+                LevelIntro
+                LevelSet Level%
+                MainLoop
+                KeyboardDisable
+        CASE 5:
+                EXIT DO
+        END SELECT
+LOOP
+
+SaveSavedData
+
+SCREEN 0: WIDTH 80
 
 SUB BeatUB
 CLS
-OPEN "game.dat" FOR INPUT AS #1: INPUT #1, temp$: CLOSE
-OPEN "game.dat" FOR OUTPUT AS #1: MID$(temp$, 4, 1) = "1": PRINT #1, temp$: CLOSE : CLOSE
-IF temp$ = "1111" THEN
+SavedData.bonusLevels(1) = 2
+
+finishedCount% = 0
+FOR i = 1 TO 4
+ IF SavedData.bonusLevels(i) = 2 THEN finishedCount% = finishedCount% + 1
+NEXT
+
+IF finishedCount% = 4 THEN
 COLOR 3
 PRINT "Wow... You beat the Almost unbeatable"
 PRINT "level... For a useful cheat, type: "
@@ -148,17 +206,14 @@ PRINT : PRINT CHR$(66); : PRINT CHR$(83);
 PRINT CHR$(89); : PRINT CHR$(49);
 PRINT CHR$(52); : PRINT CHR$(49): PRINT
 PRINT "During the game."
-WHILE INKEY$ <> "": WEND
-WHILE INKEY$ = "": WEND
-ShutDown
 ELSE
 COLOR 3
 PRINT "To get the cheat, complete the"
 PRINT "Practice levels."
-WHILE INKEY$ <> "": WEND
-WHILE INKEY$ = "": WEND
-ShutDown
 END IF
+
+WaitForKey
+Running = 0
 '66,83,89,49,52,49
 END SUB
 
@@ -167,9 +222,9 @@ IF dir = 1 THEN ty = ty - 1
 IF dir = 2 THEN ty = ty + 1
 IF dir = 3 THEN tx = tx - 1
 IF dir = 4 THEN tx = tx + 1
-FOR z = 1 TO tempmcomp
-IF tx >= minicomp(z).x AND tx <= minicomp(z).x + minicomp(z).limx THEN
-IF ty >= minicomp(z).y AND ty <= minicomp(z).y + minicomp(z).limy THEN
+FOR Z = 1 TO tempmcomp
+IF tx >= minicomp(Z).x AND tx <= minicomp(Z).x + minicomp(Z).limx THEN
+IF ty >= minicomp(Z).y AND ty <= minicomp(Z).y + minicomp(Z).limy THEN
  GOTO gk2
  END IF
 END IF
@@ -180,14 +235,14 @@ gk2:
 LINE (0, 0)-(320, 9), 0, BF
 LOCATE 1, 1: COLOR 9: PRINT "Accessing..."
 IF sfx = 1 THEN FOR z3 = 1 TO 20: SOUND INT(RND * 500) + 137, 1: NEXT
-IF Keys(minicomp(z).numreq) = 0 THEN GOTO nokey
+IF keys(minicomp(Z).numreq) = 0 THEN GOTO nokey
 MsgPut "Access granted!", 1
 IF sfx = 1 THEN SOUND 1000, 4
 t = TIMER: WHILE TIMER - t < 1: WEND
-RunComp z
+RunComp Z
 GOTO es
 nokey:
-MsgPut "You are missing CC" + STR$(minicomp(z).numreq), 1
+MsgPut "You are missing CC" + STR$(minicomp(Z).numreq), 1
 IF sfx = 1 THEN SOUND 50, 4
 es:
 WHILE INKEY$ <> "": WEND
@@ -214,16 +269,16 @@ END SUB
 
 SUB DisLas2 (t, t2)
 
-FOR z = 1 TO Lasers
-IF LASER(z).onflag = 0 THEN
-DisLas z, 28, 1
+FOR Z = 1 TO Lasers
+IF LASER(Z).onflag = 0 THEN
+DisLas Z, 28, 1
 IF sfx = 1 THEN FOR zz = 600 TO 300 STEP -50: SOUND zz, .5: SOUND zz + 100, .5: NEXT
 END IF
 NEXT
 
-FOR z = 1 TO qdl
-IF q(z).onflag = 0 THEN
-DisLas z, 28, 2
+FOR Z = 1 TO qdl
+IF q(Z).onflag = 0 THEN
+DisLas Z, 28, 2
 IF sfx = 1 THEN FOR zz = 100 TO 500 STEP 50: SOUND zz, .1: SOUND 1100 - zz, .1: NEXT
 END IF
 NEXT
@@ -250,17 +305,10 @@ END SELECT
 END SUB
 
 SUB EraseVars
-ERASE Keys, KeyTyp, KeyX, KeyY, FF, FFNum, LASER, NumOfFF, NumOfL, NumOfQd
+ERASE keys, KeyTyp, KeyX, KeyY, FF, FFNum, LASER, NumOfFF, NumOfL, NumOfQd
 ERASE FFCH, LCH, QCH, minicomp, LaserTyp, LaserNum, q, qx, qy, qs, qsx, qsy
 FFN = 0: Lasers = 0: tempmcomp = 0: health = 100: qdl = 0
 
-END SUB
-
-SUB FFUpdate
-FOR z = 1 TO FFN
- IF FF(z).onflag = 1 THEN LINE (FF(z).X1, FF(z).Y1)-(FF(z).X2, FF(z).Y2), 50
-NEXT
-ffu = TIMER
 END SUB
 
 SUB FinishGame
@@ -268,76 +316,72 @@ CLS
 FO 10, 1, "Well done, you beat this game..."
 FO 11, 1, "The Unbeatable Level is now"
 FO 12, 1, "accessable..."
-OPEN "game.dat" FOR INPUT AS #1
-INPUT #1, temp$
-CLOSE
-MID$(temp$, 4, 1) = "1"
-OPEN "game.dat" FOR OUTPUT AS #1
-PRINT #1, temp$
-CLOSE
 
-
+SavedData.bonusLevels(4) = 1
+Running = 0
 
 END SUB
 
 SUB FinishPL (t)
+
+SavedData.bonusLevels(t + 1) = 2
+
+IF t < 3 THEN
+ SavedData.bonusLevels(t + 2) = 1
+END IF
+
 CLS
-OPEN "game.dat" FOR INPUT AS #1: INPUT #1, temp$: CLOSE
 SELECT CASE t
 CASE 1
-FO 1, 1, "Practice level 2 is available"
-MID$(temp$, 1, 1) = "1"
-MID$(temp$, 2, 1) = "1"
+        FO 1, 1, "Practice level 2 is available"
 CASE 2
-FO 1, 1, "Practice level 3 is available"
-MID$(temp$, 3, 1) = "1"
+        FO 1, 1, "Practice level 3 is available"
 CASE 3
-FO 1, 1, "All practice levels completed"
+        FO 1, 1, "All practice levels completed"
 END SELECT
 FO 2, 1, "Press a key..."
-WHILE INKEY$ <> "": WEND
-WHILE INKEY$ = "": WEND
-OPEN "game.dat" FOR OUTPUT AS #1: PRINT #1, temp$: CLOSE
-SCREEN 0, 0, 0: WIDTH 80: COLOR 7, 0: ShutDown
-ShutDown
+WaitForKey
+Running = 0
+
 END SUB
 
 SUB FO (tx, ty, t$)
-FOR z = 16 TO 31
-        LOCATE tx, ty: COLOR z: PRINT t$
+FOR Z = 16 TO 31
+        LOCATE tx, ty: COLOR Z: PRINT t$
         t = TIMER: WHILE TIMER - t < .001: WEND
 NEXT
 
 END SUB
 
 SUB GameOver
-FOR z = 1 TO 300
-CIRCLE (160, 100), z, 4
-FOR p = 1 TO mainpause * 2: NEXT
+FOR Z = 1 TO 300
+CIRCLE (160, 100), Z, 4
+IF Z MOD 8 = 0 THEN
+ WAIT &H3DA, 8: WAIT &H3DA, 8, 8
+END IF
 NEXT
-FOR z = 41 TO 1 STEP -1
-PALETTE 4, 65536 * 0 + 256 * 0 + z
-FOR p = 1 TO mainpause * 10: NEXT
+FOR Z = 41 TO 1 STEP -1
+PALETTE 4, 65536 * 0 + 256 * 0 + Z
+ WAIT &H3DA, 8: WAIT &H3DA, 8, 8
 NEXT
 CLS
 COLOR 4: LOCATE 10, 14: PRINT "Game Over!!!"
-FOR z = 1 TO 41
-PALETTE 4, 65536 * 0 + 256 * 0 + z
-FOR p = 1 TO mainpause * 10: NEXT
+FOR Z = 1 TO 41
+PALETTE 4, 65536 * 0 + 256 * 0 + Z
+ WAIT &H3DA, 8: WAIT &H3DA, 8, 8
 NEXT
 t = TIMER: WHILE TIMER - t < 2: WEND
-FOR z = 41 TO 1 STEP -1
-PALETTE 4, 65536 * 0 + 256 * 0 + z
-FOR p = 1 TO mainpause * 10: NEXT
+FOR Z = 41 TO 1 STEP -1
+PALETTE 4, 65536 * 0 + 256 * 0 + Z
+ WAIT &H3DA, 8: WAIT &H3DA, 8, 8
 NEXT
-CLS
-ShutDown
+Running = 0
 END SUB
 
 SUB GotKey
-FOR z = 1 TO 6
-IF x > KeyX(z) AND x < KeyX(z) + 6 THEN
- IF y > KeyY(z) AND y < KeyY(z) + 6 THEN
+FOR Z = 1 TO 6
+IF x > KeyX(Z) AND x < KeyX(Z) + 6 THEN
+ IF y > KeyY(Z) AND y < KeyY(Z) + 6 THEN
   IF sfx = 1 THEN FOR z2 = 500 TO 4000 STEP 500: SOUND z2, .1: SOUND z2 + 500, .1: NEXT
   GOTO gk
  END IF
@@ -345,12 +389,12 @@ END IF
 NEXT
 EXIT SUB
 gk:
-LINE (KeyX(z), KeyY(z))-(KeyX(z) + 6, KeyY(z) + 6), 0, BF
-Keys(z) = 1
-KeyX(z) = 0: KeyY(z) = 0
+LINE (KeyX(Z), KeyY(Z))-(KeyX(Z) + 6, KeyY(Z) + 6), 0, BF
+keys(Z) = 1
+KeyX(Z) = 0: KeyY(Z) = 0
 IF mf = 0 THEN
-FOR z = 2 TO 12 STEP 2
-LOCATE 1, z / 2: IF Keys(z / 2) = 1 THEN COLOR 2: PRINT LTRIM$(RTRIM$(STR$(z / 2)))
+FOR Z = 2 TO 12 STEP 2
+LOCATE 1, Z / 2: IF keys(Z / 2) = 1 THEN COLOR 2: PRINT LTRIM$(RTRIM$(STR$(Z / 2)))
 NEXT
 END IF
 DrawCharacter dir
@@ -368,13 +412,13 @@ LINE (100, 0)-(100 + health, 8), 4, BF
 EXIT SUB
 
 DIE2:
-FOR z = 1 TO 5
-CIRCLE (x + 3, y + 3), z, 4
+FOR Z = 1 TO 5
+CIRCLE (x + 3, y + 3), Z, 4
 IF sfx = 1 THEN SOUND 0, 2
 NEXT
 
-FOR z = 1 TO 5
-CIRCLE (x + 3, y + 3), z, 0
+FOR Z = 1 TO 5
+CIRCLE (x + 3, y + 3), Z, 0
 IF sfx = 1 THEN SOUND 0, 2
 NEXT
 
@@ -386,8 +430,7 @@ x = StartX: y = StartY: dir = StartDir
 Lives = Lives - 1: IF Lives = -1 THEN GameOver
 LINE (0, 0)-(320, 9), 0, BF
 LOCATE 1, 1: PRINT "Lives:", Lives
-WHILE INKEY$ <> "": WEND
-WHILE INKEY$ = "": WEND
+WaitForKey
 IF dir = 1 THEN PUT (x, y), UP1%
 IF dir = 2 THEN PUT (x, y), DN1%
 IF dir = 3 THEN PUT (x, y), LT1%
@@ -397,69 +440,191 @@ health = 100
 WHILE INKEY$ <> "": WEND
 END SUB
 
+SUB Intro
+FOR Z = 1 TO 15
+SIZE$ = STR$(Z)
+SIZE$ = LTRIM$(SIZE$)
+XY1$ = "C2 S" + SIZE$
+tx = 0: ty = 70
+x = 160 - (Z * 10): y = 100 - (Z * 2)
+SX$ = STR$(x)
+SY$ = STR$(y)
+SX$ = LTRIM$(SX$)
+SY$ = LTRIM$(SY$)
+XY2$ = " BM"
+XY2$ = XY2$ + SX$ + ","
+XY2$ = XY2$ + SY$ + " R10L10D10R10L10D10R10BR5"
+XY2$ = XY2$ + "R10U10L10U10R10BR5"
+XY2$ = XY2$ + "R10L10D20R10BR5"
+XY2$ = XY2$ + "U20R10D20U10L10R10D10BR5"
+XY2$ = XY2$ + "U20R10D10L10D10BR15"
+XY2$ = XY2$ + "R10 L10 U10 R10 L10 U10 R10"
+
+XY1$ = XY1$ + XY2$
+DRAW XY1$
+
+WaitVSync: WaitVSync: WaitVSync
+
+'*******************************************
+XY1$ = "C1 S" + SIZE$
+XY2$ = " BM"
+XY2$ = XY2$ + SX$ + ","
+XY2$ = XY2$ + SY$ + " R10 L10 D10 R10L10D10R10BR5"
+XY2$ = XY2$ + "R10U10L10U10R10BR5"
+XY2$ = XY2$ + "R10L10D20R10BR5"
+XY2$ = XY2$ + "U20R10D20U10L10R10D10BR5"
+XY2$ = XY2$ + "U20R10D10L10D10BR15"
+XY2$ = XY2$ + "R10 L10 U10 R10 L10 U10 R10"
+
+XY1$ = XY1$ + XY2$
+DRAW XY1$
+a$ = INKEY$: IF a$ <> "" THEN EXIT SUB
+NEXT
+
+
+x = 160 - (15 * 10): y = 100 - (15 * 2)
+SIZE$ = "15"
+XY1$ = "C2 S" + SIZE$
+SX$ = STR$(x)
+SY$ = STR$(y)
+SX$ = LTRIM$(SX$)
+SY$ = LTRIM$(SY$)
+XY2$ = " BM"
+XY2$ = XY2$ + SX$ + ","
+XY2$ = XY2$ + SY$ + " R10L10D10R10L10D10R10BR5"
+XY2$ = XY2$ + "R10U10L10U10R10BR5"
+XY2$ = XY2$ + "R10L10D20R10BR5"
+XY2$ = XY2$ + "U20R10D20U10L10R10D10BR5"
+XY2$ = XY2$ + "U20R10D10L10D10BR15"
+XY2$ = XY2$ + "R10 L10 U10 R10 L10 U10 R10"
+XY1$ = XY1$ + XY2$
+DRAW XY1$
+
+IF Intro.ShortWait(2) THEN EXIT SUB
+
+tr = 0: tg = 0: tb = 1
+FOR Z = 41 TO 1 STEP -1
+PALETTE 1, 65536 * Z + 256 * 0 + 0
+PALETTE 4, 65536 * 0 + 256 * 0 + Z
+
+IF Intro.ShortWait(.01) THEN EXIT SUB
+
+NEXT
+
+COLOR 4: LOCATE 20, 10: PRINT "By Matthew Johnson"
+
+FOR Z = 0 TO 63
+PALETTE 4, 65536 * 0 + 256 * 0 + Z
+
+IF Intro.ShortWait(.01) THEN EXIT SUB
+NEXT
+
+IF Intro.ShortWait(1) THEN EXIT SUB
+
+FOR Z = 41 TO 0 STEP -1
+PALETTE 2, 65536 * 0 + 256 * Z + 0
+IF Intro.ShortWait(.01) THEN EXIT SUB
+NEXT
+
+FOR Z = 63 TO 0 STEP -1
+PALETTE 4, 65536 * 0 + 256 * 0 + Z
+IF Intro.ShortWait(.01) THEN EXIT SUB
+NEXT
+CLS
+COLOR 4: LOCATE 10, 10: PRINT "Escape... If you can..."
+FOR Z = 0 TO 63
+PALETTE 4, 65536 * 0 + 256 * 0 + Z
+IF Intro.ShortWait(.01) THEN EXIT SUB
+NEXT
+ts = TIMER: WHILE TIMER - ts < 2: WEND
+FOR Z = 63 TO 0 STEP -1
+PALETTE 4, 65536 * 0 + 256 * 0 + Z
+IF Intro.ShortWait(.01) THEN EXIT SUB
+NEXT
+
+END SUB
+
+FUNCTION Intro.ShortWait (delay AS SINGLE)
+t! = TIMER
+WHILE TIMER - t! < delay
+ a$ = INKEY$
+ IF a$ <> "" THEN
+        Intro.ShortWait = 1
+        EXIT FUNCTION
+ END IF
+WEND
+
+Intro.ShortWait = 0
+END FUNCTION
+
+SUB KeyboardInit
+KeyboardLibInit BYVAL VARSEG(kb(0)), BYVAL VARPTR(kb(0)), BYVAL VARSEG(prevKeys(0)), BYVAL VARPTR(prevKeys(0))
+END SUB
+
+SUB KeyboardOn
+
+FOR i% = 0 TO 128
+ kb(i%) = 0
+NEXT
+
+KeyboardEnable
+END SUB
+
 SUB KeyInpt (t$)
 IF ilk$(6) <> "" OR ilk$(6) = "" AND ilk$(5) = "" THEN
- FOR z = 1 TO 5: ilk$(z) = ilk$(z + 1): NEXT
+ FOR Z = 1 TO 5: ilk$(Z) = ilk$(Z + 1): NEXT
 ilk$(6) = t$
 GOTO EIF1
 ELSE
-FOR z = 1 TO 5
- IF ilk$(z) = "" THEN ilk$(z) = t$: GOTO EIF1
+FOR Z = 1 TO 5
+ IF ilk$(Z) = "" THEN ilk$(Z) = t$: GOTO EIF1
 NEXT
 EIF1:
 END IF
 k$ = ""
-FOR z = 1 TO 6
- k$ = k$ + ilk$(z)
+FOR Z = 1 TO 6
+ k$ = k$ + ilk$(Z)
 NEXT
-IF k$ = "BSY141" THEN ShowCodes 1
+' IF k$ = "BSY141" THEN ShowCodes 1
 END SUB
 
 SUB LevelIntro
-code$ = ""
-IF Level < 32 THEN
- FOR z = 1 TO 4
- code$ = code$ + CHR$(INT(RND * 25) + 65)
-NEXT
-END IF
+KeyboardDisable
 roi:
-tlevel = Level
-IF Level = 32 THEN tlevel = 1
-IF Level = 33 THEN tlevel = 2
-IF Level = 34 THEN tlevel = 3
-IF Level > 31 THEN X2$ = "Practice level " ELSE X2$ = "Level "
+tlevel = Level%
+IF Level% = 32 THEN tlevel = 1
+IF Level% = 33 THEN tlevel = 2
+IF Level% = 34 THEN tlevel = 3
+IF Level% > 31 THEN X2$ = "Practice level " ELSE X2$ = "Level "
 IF tlevel <> 31 THEN X2$ = X2$ + LTRIM$(RTRIM$(STR$(tlevel))) ELSE X2$ = "The Unbeatable Level"
 
 col = (40 - LEN(X2$)) / 2
-col2 = (40 - LEN("Level code:" + code$)) / 2
 CLOSE
 CLS
 '                  b         g   r
 PALETTE 1, 65536 * 0 + 256 * 0 + 0
 PALETTE 4, 65536 * 0 + 256 * 0 + 0
 COLOR 4: LOCATE 10, col: PRINT X2$
-COLOR 1: LOCATE 15, col2: PRINT "Level code:" + code$
 COLOR 4: LOCATE 12, 5: PRINT "Lives remaining:"; Lives
-FOR z = 1 TO 41
-PALETTE 1, 65536 * z + 256 * 0 + 0
-PALETTE 4, 65536 * 0 + 256 * 0 + z
-FOR p = 1 TO mainpause * 10: NEXT
+FOR Z = 1 TO 41
+PALETTE 1, 65536 * Z + 256 * 0 + 0
+PALETTE 4, 65536 * 0 + 256 * 0 + Z
+WAIT &H3DA, 8: WAIT &H3DA, 8, 8
 NEXT
 LOCATE 24, 1: COLOR 5: PRINT "Press a key...";
-WHILE INKEY$ <> "": WEND
-WHILE INKEY$ = "": WEND
-FOR z = 41 TO 1 STEP -1
-PALETTE 1, 65536 * z + 256 * 0 + 0
-PALETTE 4, 65536 * 0 + 256 * 0 + z
-FOR p = 1 TO mainpause * 10: NEXT
+WaitForKey
+FOR Z = 41 TO 1 STEP -1
+PALETTE 1, 65536 * Z + 256 * 0 + 0
+PALETTE 4, 65536 * 0 + 256 * 0 + Z
+WAIT &H3DA, 8: WAIT &H3DA, 8, 8
 NEXT
 CLS
 PALETTE 1, 65536 * 41 + 256 * 0 + 0
 PALETTE 4, 65536 * 0 + 256 * 0 + 41
-
+KeyboardOn
 END SUB
 
-SUB LevelSet (LevelNum)
+SUB LevelSet (LevelNum AS INTEGER)
 LINE (0, 10)-(320, 10), 4
 FFN = 0
 keyt = 0
@@ -526,8 +691,8 @@ CASE 10
 '*******
 INPUT #1, qdl
 INPUT #1, tmpstps
-FOR z = 1 TO tmpstps
- INPUT #1, qx(qdl, z), qy(qdl, z)
+FOR Z = 1 TO tmpstps
+ INPUT #1, qx(qdl, Z), qy(qdl, Z)
 NEXT
 INPUT #1, q(qdl).onflag
 INPUT #1, q(qdl).dir
@@ -546,18 +711,18 @@ tempmcomp = tempmcomp + 1
 INPUT #1, tx, ty
 INPUT #1, NumOfFF(tempmcomp)
 IF NumOfFF(tempmcomp) = 0 THEN INPUT #1, dummy
-FOR z = 1 TO NumOfFF(tempmcomp)
-IF NumOfFF(tempmcomp) >= z THEN INPUT #1, FFCH(tempmcomp, z)
+FOR Z = 1 TO NumOfFF(tempmcomp)
+IF NumOfFF(tempmcomp) >= Z THEN INPUT #1, FFCH(tempmcomp, Z)
 NEXT
 INPUT #1, NumOfL(tempmcomp)
 IF NumOfL(tempmcomp) = 0 THEN INPUT #1, dummy
-FOR z = 1 TO NumOfL(tempmcomp)
-IF NumOfL(tempmcomp) >= z THEN INPUT #1, LCH(tempmcomp, z)
+FOR Z = 1 TO NumOfL(tempmcomp)
+IF NumOfL(tempmcomp) >= Z THEN INPUT #1, LCH(tempmcomp, Z)
 NEXT
 INPUT #1, NumOfQd(tempmcomp)
 IF NumOfQd(tempmcomp) = 0 THEN INPUT #1, dummy
-FOR z = 1 TO NumOfQd(tempmcomp)
-IF NumOfQd(tempmcomp) >= z THEN INPUT #1, QCH(tempmcomp, z)
+FOR Z = 1 TO NumOfQd(tempmcomp)
+IF NumOfQd(tempmcomp) >= Z THEN INPUT #1, QCH(tempmcomp, Z)
 NEXT
 
 IF TempObjType = 6 THEN lx = 4: ly = 8
@@ -630,46 +795,38 @@ CLS
 
 END SUB
 
-SUB LoadStat
-OPEN "LW.CHK" FOR INPUT AS #1
- INPUT #1, Level
-CLOSE
-IF Level = -1 THEN GOTO NextFile
-GOTO ispeed
-
-NextFile:
-OPEN "LG.FLG" FOR INPUT AS #1
- INPUT #1, LoadNum
-CLOSE
-OPEN "gfx\sm.gfx" FOR INPUT AS #1
-FOR z = 0 TO LoadNum
-INPUT #1, null, n$, Level, health
-NEXT
-CLOSE
-
-ispeed:
-OPEN "speed.dat" FOR INPUT AS #1: INPUT #1, mainpause: CLOSE
-END SUB
-
 SUB MainLoop
 ht = TIMER
-ml:
-a$ = INKEY$
-IF INP(96) = 72 THEN MoveUp
-IF INP(96) = 75 THEN MoveLt
-IF INP(96) = 77 THEN MoveRt
-IF INP(96) = 80 THEN MoveDn
-IF UCASE$(a$) = "Q" THEN ShutDown
-IF a$ = "+" THEN ShowCodes 2
-IF a$ > "0" AND a$ < "Z" THEN KeyInpt a$
+Running = 1
+
+DO WHILE Running = 1
+
+        IF kb(72) THEN MoveUp
+        IF kb(75) THEN MoveLt
+        IF kb(77) THEN MoveRt
+        IF kb(80) THEN MoveDn
+
+IF kb(16) THEN
+ Running = 0
+END IF
+
+IF kb(17) THEN
+ PassLevel
+END IF
+'IF UCASE$(a$) = "Q" THEN ShutDown
+'IF a$ = "+" THEN ShowCodes 2
+'IF a$ > "0" AND a$ < "Z" THEN KeyInpt a$
 IF a$ = CHR$(0) + "<" THEN SaveGame
-IF a$ = "," THEN mainpause = mainpause - 10: MsgPut "Pauseloop" + STR$(mainpause) + "*100", 1
-IF a$ = "." THEN mainpause = mainpause + 10: MsgPut "Pauseloop" + STR$(mainpause) + "*100", 1
+'IF a$ = "," THEN mainpause = mainpause - 10: MsgPut "Pauseloop" + STR$(mainpause) + "*100", 1
+'IF a$ = "." THEN mainpause = mainpause + 10: MsgPut "Pauseloop" + STR$(mainpause) + "*100", 1
 IF UCASE$(a$) = "S" THEN SndCtrl
 UpdateLaser
 IF qdl > 0 THEN UpdateQuad
 UpdateSprites
-FOR z = 1 TO mainpause * 100: NEXT
+
+
+' FOR z = 1 TO mainpause * 100: NEXT
+
 IF msg = 1 THEN IF TIMER - msgt >= 2 THEN MsgPut "", 0
 IF msg = 0 AND health < 100 AND TIMER - ht >= 1 THEN
  health = health + 1
@@ -680,18 +837,365 @@ IF msg = 0 AND health < 100 AND TIMER - ht >= 1 THEN
  IF health = 100 THEN LINE (0, 0)-(320, 9), 0, BF
  mf = 1
 END IF
-GOTO ml
+WAIT &H3DA, 8
+WAIT &H3DA, 8, 8
+LOOP
+END SUB
+
+SUB Menu
+RSWP:
+DIM AR%(200)
+DIM SN$(0 TO 9)
+DIM SL(0 TO 9)
+DIM SH(0 TO 9)
+DIM MenuNames(1 TO 5) AS STRING
+DIM MenuHelp(1 TO 5) AS STRING
+
+'***************************
+M = 1                     '*
+MenuNames(1) = "Play Game"
+MenuNames(2) = "Load Game"
+MenuNames(3) = "Special"
+MenuNames(4) = "Read This!!!"
+MenuNames(5) = "Quit"
+
+MenuHelp(1) = "Starts a new game"
+MenuHelp(2) = "Loads a saved game"
+MenuHelp(3) = "Special/Practice level accsess"
+MenuHelp(4) = "Instructions"
+MenuHelp(5) = "Quits the game"
+
+AY = 73         '*
+
+CLS
+
+' Load the arrow graphic
+PSET (0, 2), 32: PSET (1, 2), 33: PSET (2, 2), 34: PSET (3, 2), 35
+PSET (3, 1), 35: PSET (3, 3), 35: PSET (4, 2), 36
+GET (0, 0)-(5, 5), AR%
+
+'***************************
+ST:
+Main:
+CLS
+Main2:
+PUT (60, AY), AR%, XOR
+FOR PM = 1 TO 5
+IF PM = M THEN LOCATE PM + 9, 10: COLOR 14: PRINT MenuNames(PM)
+IF PM <> M THEN LOCATE PM + 9, 10: COLOR 32: PRINT MenuNames(PM)
+NEXT
+LOCATE 20, 1: PRINT STRING$(40, " "): COLOR 7: LOCATE 20, 1: PRINT MenuHelp(M)
+
+'*****************************************************
+DO
+a$ = INKEY$
+IF a$ = CHR$(0) + "H" THEN
+        IF M > 1 THEN GOTO MenuUp
+END IF
+
+IF a$ = CHR$(0) + "P" THEN
+        IF M < 5 THEN GOTO MenuDown
+END IF
+
+IF UCASE$(a$) = "Q" THEN
+        MenuChoice% = 5
+        EXIT SUB
+END IF
+IF a$ = CHR$(13) OR a$ = " " THEN GOTO MenuRet
+IF a$ = "+" AND M = 1 THEN lwk = 1: GOTO MenuRet
+LOOP
+
+'*****************************************************
+MenuUp:
+PUT (60, AY), AR%, XOR
+td = 2: c = 31
+FOR MA = 1 TO 8
+        AY = AY - 1
+        PUT (60, AY), AR%, XOR
+        t = TIMER: WHILE TIMER - t < .001: WEND
+        PUT (60, AY), AR%, XOR
+        IF td = 2 AND c >= 16 THEN c = c - 4: IF c <= 15 THEN c = 16: td = 1: GOTO pl1
+        IF td = 1 AND c <= 32 THEN c = c + 4: IF c >= 32 THEN c = 31: td = 0
+
+pl1:
+COLOR c
+IF td = 2 THEN LOCATE 20, 1: PRINT MenuHelp(M) ELSE LOCATE 20, 1: PRINT MenuHelp(M - 1)
+NEXT
+M = M - 1
+GOTO Main2
+
+MenuDown:
+td = 2: c = 31
+PUT (60, AY), AR%, XOR
+FOR MA = 1 TO 8
+        AY = AY + 1
+        PUT (60, AY), AR%, XOR
+        t = TIMER: WHILE TIMER - t < .001: WEND
+        PUT (60, AY), AR%, XOR
+        IF td = 2 AND c >= 16 THEN c = c - 4: IF c <= 15 THEN c = 16: td = 1: GOTO pl2
+        IF td = 1 AND c <= 32 THEN c = c + 4: IF c >= 32 THEN c = 31: td = 0
+
+pl2:
+COLOR c
+IF td = 2 THEN LOCATE 20, 1: PRINT MenuHelp(M) ELSE LOCATE 20, 1: PRINT MenuHelp(M + 1)
+NEXT
+M = M + 1
+GOTO Main2
+
+MenuRet:
+FOR Z = 31 TO 16 STEP -1
+        LOCATE 9 + M, 10: COLOR Z: PRINT MenuNames(M)
+        t = TIMER: WHILE TIMER - t < .001: WEND
+NEXT
+CLS
+
+MenuChoice% = M
+IF M = 1 THEN GOTO PlayGame
+IF M = 2 THEN GOTO LoadGame
+IF M = 3 THEN
+        Menu.Special
+        IF MenuLevelWarp% <> 0 THEN
+                MenuChoice% = 1
+                EXIT SUB
+        END IF
+        GOTO Main
+END IF
+IF M = 4 THEN GOTO ReadThis
+IF M = 5 THEN GOTO Quit
+'**********************************PLAY GAME
+PlayGame:
+MenuLevelWarp% = 1
+
+COLOR 32
+IF lwk = 1 THEN INPUT "Level warp 1-34>>>"; MenuLevelWarp%
+EXIT SUB
+'**********************************LOAD GAME
+LoadGame:
+COLOR 32
+'***********
+OPEN "gfx\sm.gfx" FOR INPUT AS #1
+COLOR 32: LOCATE 1, 1: PRINT "#"; "   Name"; "      Level";
+FOR SI = 0 TO 9
+INPUT #1, null, SN$(SI), SL(SI), SH(SI)
+LOCATE SI + 2, 1: PRINT SI; SN$(SI); "    "; SL(SI); "       "
+NEXT
+CLOSE
+'***********
+ReStartLoad:
+LOCATE 17, 1: COLOR 32: PRINT "ENTER 99 TO EXIT"
+FB = Menu.GetFName
+IF FB = 99 THEN CLOSE : GOTO QL
+IF FB < 0 OR FB > 9 THEN BEEP: GOTO ReStartLoad
+IF SN$(FB) = "*Nothing" THEN BEEP: GOTO ReStartLoad
+GOTO MLG
+'************************
+QL:
+FOR Z = 31 TO 16 STEP -1
+        LOCATE 16, 1: COLOR Z: PRINT "Enter 0-9>"
+        t = TIMER: WHILE TIMER - t < .001: WEND
+NEXT
+GOTO ST
+
+MLG:
+OPEN "LG.FLG" FOR OUTPUT AS #1: PRINT #1, FB: CLOSE
+OPEN "LW.CHK" FOR OUTPUT AS #1: PRINT #1, -1: CLOSE
+FOR Z = 31 TO 16 STEP -1
+        LOCATE 16, 1: COLOR Z: PRINT "Enter 0-9>"
+        t = TIMER: WHILE TIMER - t < .001: WEND
+NEXT
+SYSTEM
+'***********************************************PASSWORD
+
+ReadThis:
+EXIT SUB
+
+Quit:
+COLOR 4
+PRINT "QUIT??!!!! TYPE Y OR N"
+QUITLOOP:
+        a$ = INKEY$
+                IF a$ = "Y" OR a$ = "y" THEN GOTO YQUIT
+                IF a$ = "N" OR a$ = "n" THEN GOTO NQUIT
+        GOTO QUITLOOP
+
+YQUIT:
+FOR Z = 31 TO 16 STEP -1
+        LOCATE 1, 1: COLOR Z: PRINT "QUIT??!!!! TYPE Y OR N"
+        t = TIMER: WHILE TIMER - t < .001: WEND
+NEXT
+EXIT SUB
+
+NQUIT:
+FOR Z = 31 TO 16 STEP -1
+        LOCATE 1, 1: COLOR Z: PRINT "QUIT??!!!! TYPE Y OR N"
+        t = TIMER: WHILE TIMER - t < .001: WEND
+NEXT
+GOTO ST
+
+
+END SUB
+
+FUNCTION Menu.GetFName
+LOCATE 16, 11: PRINT STRING$(29, " ")
+tcol = 11
+t$ = ""
+COLOR 2: LOCATE 16, 1: PRINT "Enter 0-9>"
+LOCATE 16, tcol: COLOR 10: PRINT "_"
+
+mm:
+a$ = INKEY$
+IF a$ <> "" THEN GOTO gotn
+GOTO mm
+
+gotn:
+SELECT CASE a$
+
+CASE "0" TO "9"
+t$ = t$ + a$
+COLOR 2: LOCATE 16, 11: PRINT t$; : COLOR 10: PRINT "_"
+tcol = tcol + 1
+
+CASE CHR$(8)
+IF tcol - 1 = 10 THEN GOTO mm
+t$ = LEFT$(t$, LEN(t$) - 1)
+COLOR 2: LOCATE 16, 11: PRINT t$; : COLOR 10: PRINT "_"
+LOCATE 16, tcol: PRINT " "
+tcol = tcol - 1
+
+CASE CHR$(13)
+Menu.GetFName = VAL(t$)
+EXIT FUNCTION
+END SELECT
+GOTO mm
+
+END FUNCTION
+
+FUNCTION Menu.GetInpt (te$)
+LOCATE 8, 1: PRINT STRING$(40, " ")
+tcol = LEN(te$) + 1
+mtc = tcol
+t$ = ""
+COLOR 5: LOCATE 8, 1: PRINT te$
+LOCATE 8, tcol: COLOR 10: PRINT "_"
+
+mm2:
+a$ = INKEY$
+IF a$ <> "" THEN GOTO gotn2
+GOTO mm2
+
+gotn2:
+SELECT CASE a$
+
+CASE "0" TO "9"
+t$ = t$ + a$
+COLOR 2: LOCATE 8, mtc: PRINT t$; : COLOR 10: PRINT "_"
+tcol = tcol + 1
+
+CASE CHR$(8)
+IF tcol - 1 < mtc THEN GOTO mm2
+t$ = LEFT$(t$, LEN(t$) - 1)
+COLOR 2: LOCATE 8, mtc: PRINT t$; : COLOR 10: PRINT "_"
+LOCATE 8, tcol: PRINT " "
+tcol = tcol - 1
+
+CASE CHR$(13)
+Menu.GetInpt = VAL(t$)
+EXIT FUNCTION
+END SELECT
+GOTO mm2
+
+END FUNCTION
+
+SUB Menu.Special
+
+MenuLevelWarp% = 0
+
+COLOR 2: LOCATE 9, 1: PRINT "Type 99 to exit"
+COLOR 14: LOCATE 1, 1: PRINT "Special levels:": PRINT
+COLOR 32: PRINT "1-Practice level 1"
+
+LOCATE 4
+IF SavedData.bonusLevels(3) > 0 THEN COLOR 32 ELSE COLOR 8
+PRINT "2-Practice level 2"
+
+LOCATE 5
+IF SavedData.bonusLevels(4) > 0 THEN COLOR 32 ELSE COLOR 8
+PRINT "3-Practice level 3"
+
+LOCATE 6
+IF SavedData.bonusLevels(1) > 0 THEN COLOR 32 ELSE COLOR 8
+PRINT "4-The Unbeatable Level (31)"
+
+rsp:
+ts = Menu.GetInpt("Select 1-4>")
+IF ts = 99 THEN EXIT SUB
+IF ts < 1 OR ts > 4 THEN BEEP: GOTO rsp
+
+SELECT CASE ts
+CASE 1
+MenuLevelWarp% = 32
+EXIT SUB
+
+CASE 2
+IF SavedData.bonusLevels(2) <> 2 THEN
+FO 20, 1, "This level cannot be accessed until"
+FO 21, 1, "Practice level 1 is completed."
+FO 22, 1, "Press a key..."
+
+WaitForKeyOld
+ELSE
+LevelStart = 33: LWW = 1
+END IF
+
+CASE 3
+IF SavedData.bonusLevels(3) <> 2 THEN
+FO 20, 1, "This level cannot be accessed until"
+FO 21, 1, "Practice level 2 is completed."
+FO 22, 1, "Press a key..."
+WaitForKeyOld
+ELSE
+LevelStart = 34: LWW = 1
+END IF
+
+CASE 4
+IF MID$(temp$, 4, 1) = "0" THEN
+FO 20, 1, "You must complete all 30 levels, and the"
+FO 21, 1, "practice levels to go here."
+FO 22, 1, "Press a key..."
+WaitForKeyOld
+ELSE
+LevelStart = 31: LWW = 1
+END IF
+
+END SELECT
+LOCATE 20: PRINT STRING$(40, " "): LOCATE 21: PRINT STRING$(40, " "): LOCATE 22: PRINT STRING$(40, " ")
+
+IF LWW = 1 THEN
+MenuLevelWarp% = LevelStart
+
+EXIT SUB
+' TODO
+
+'OPEN "LW.CHK" FOR OUTPUT AS #1: PRINT #1, LevelStart: CLOSE
+'OPEN "PG.FLG" FOR OUTPUT AS #1
+'PRINT #1, "FLAG ON"
+'CLOSE
+'SYSTEM
+END IF
+
+GOTO rsp
+
 END SUB
 
 SUB MoveDn
 IF y + 9 >= 200 THEN EXIT SUB
 
-FOR z = x TO x + 7
-IF POINT(z, y + 8) = 32 THEN GOTO cancel2
-IF POINT(z, y + 8) = 28 THEN GOTO cancel2
-IF POINT(z, y + 8) = 33 THEN PassLevel: GOTO cancel2
-IF POINT(z, y + 8) = 5 THEN dir = 2: compentr z, y + 8: EXIT SUB
-IF POINT(z, y + 8) = 50 THEN HitChar 30: GOTO cancel2
+FOR Z = x TO x + 7
+IF POINT(Z, y + 8) = 32 THEN GOTO cancel2
+IF POINT(Z, y + 8) = 28 THEN GOTO cancel2
+IF POINT(Z, y + 8) = 33 THEN PassLevel: GOTO cancel2
+IF POINT(Z, y + 8) = 5 THEN dir = 2: compentr Z, y + 8: EXIT SUB
+IF POINT(Z, y + 8) = 50 THEN HitChar 30: GOTO cancel2
 NEXT
 GotKey
 
@@ -707,12 +1211,12 @@ END SUB
 SUB MoveLt
 IF x - 1 = -1 THEN EXIT SUB
 
-FOR z = y TO y + 7
-IF POINT(x - 1, z) = 32 THEN GOTO cancel3
-IF POINT(x - 1, z) = 28 THEN GOTO cancel3
-IF POINT(x - 1, z) = 33 THEN PassLevel: GOTO cancel3
-IF POINT(x - 1, z) = 5 THEN dir = 3: compentr x - 1, z: EXIT SUB
-IF POINT(x - 1, z) = 50 THEN HitChar 30: GOTO cancel3
+FOR Z = y TO y + 7
+IF POINT(x - 1, Z) = 32 THEN GOTO cancel3
+IF POINT(x - 1, Z) = 28 THEN GOTO cancel3
+IF POINT(x - 1, Z) = 33 THEN PassLevel: GOTO cancel3
+IF POINT(x - 1, Z) = 5 THEN dir = 3: compentr x - 1, Z: EXIT SUB
+IF POINT(x - 1, Z) = 50 THEN HitChar 30: GOTO cancel3
 NEXT
 GotKey
 
@@ -728,12 +1232,12 @@ END SUB
 SUB MoveRt
 IF x + 9 = 321 THEN EXIT SUB
 
-FOR z = y TO y + 7
-IF POINT(x + 8, z) = 32 THEN GOTO cancel4
-IF POINT(x + 8, z) = 28 THEN GOTO cancel4
-IF POINT(x + 8, z) = 33 THEN PassLevel: GOTO cancel4
-IF POINT(x + 8, z) = 5 THEN dir = 4: compentr x + 8, z: EXIT SUB
-IF POINT(x + 8, z) = 50 THEN HitChar 30: GOTO cancel4
+FOR Z = y TO y + 7
+IF POINT(x + 8, Z) = 32 THEN GOTO cancel4
+IF POINT(x + 8, Z) = 28 THEN GOTO cancel4
+IF POINT(x + 8, Z) = 33 THEN PassLevel: GOTO cancel4
+IF POINT(x + 8, Z) = 5 THEN dir = 4: compentr x + 8, Z: EXIT SUB
+IF POINT(x + 8, Z) = 50 THEN HitChar 30: GOTO cancel4
 NEXT
 GotKey
 
@@ -750,12 +1254,12 @@ END SUB
 SUB MoveUp
 IF y - 1 = 10 THEN EXIT SUB
 
-FOR z = x TO x + 7
-IF POINT(z, y - 1) = 32 THEN GOTO cancel1
-IF POINT(z, y - 1) = 28 THEN GOTO cancel1
-IF POINT(z, y - 1) = 33 THEN PassLevel: GOTO cancel1
-IF POINT(z, y - 1) = 5 THEN dir = 1: compentr z, y - 1: EXIT SUB
-IF POINT(z, y - 1) = 50 THEN HitChar 30: GOTO cancel1
+FOR Z = x TO x + 7
+IF POINT(Z, y - 1) = 32 THEN GOTO cancel1
+IF POINT(Z, y - 1) = 28 THEN GOTO cancel1
+IF POINT(Z, y - 1) = 33 THEN PassLevel: GOTO cancel1
+IF POINT(Z, y - 1) = 5 THEN dir = 1: compentr Z, y - 1: EXIT SUB
+IF POINT(Z, y - 1) = 50 THEN HitChar 30: GOTO cancel1
 NEXT
 GotKey
 
@@ -786,51 +1290,48 @@ END SUB
 
 SUB PassLevel
 LINE (0, 0)-(320, 9), 0, BF
-IF sfx = 1 THEN SOUND 250, 1: SOUND 700, 1: SOUND 300, 1: SOUND 100, 1: SOUND 500, 1
-WHILE INKEY$ <> "": WEND
-COLOR 3: LOCATE 1, 1: INPUT "Code?", t$
-IF t$ <> code$ THEN
- LINE (0, 0)-(320, 9), 0, BF
- COLOR 4: LOCATE 1, 1: PRINT "Incorrect!"
- IF sfx = 1 THEN FOR z = 1000 TO 37 STEP -100: SOUND z, .5: NEXT
- FOR z = 1 TO (health / 10) + 1: HitChar 10: NEXT
- EraseVars
- LevelIntro
- LevelSet Level
-END IF
-IF t$ <> code$ THEN EXIT SUB
-LINE (0, 0)-(320, 9), 0, BF
-COLOR 10: LOCATE 1, 1: PRINT "Correct!"
+
+'IF sfx = 1 THEN SOUND 250, 1: SOUND 700, 1: SOUND 300, 1: SOUND 100, 1: SOUND 500, 1
+
 IF sfx = 1 THEN SOUND 0, 5
+
 IF sfx = 1 THEN
- FOR z = 100 TO 4000 STEP 500: SOUND z, .5: NEXT
- FOR z = 37 TO 400 STEP 5: SOUND z, .05: NEXT
- FOR z = 200 TO 600 STEP 5: SOUND z, .05: NEXT
- FOR z = 400 TO 800 STEP 5: SOUND z, .05: NEXT
- FOR z = 600 TO 1000 STEP 5: SOUND z, .05: NEXT
+ FOR Z = 100 TO 4000 STEP 500: SOUND Z, .5: NEXT
+ FOR Z = 37 TO 400 STEP 5: SOUND Z, .05: NEXT
+ FOR Z = 200 TO 600 STEP 5: SOUND Z, .05: NEXT
+ FOR Z = 400 TO 800 STEP 5: SOUND Z, .05: NEXT
+ FOR Z = 600 TO 1000 STEP 5: SOUND Z, .05: NEXT
 END IF
 X1 = 0: X2 = 320
 Y1 = 0: Y2 = 200
+
 WHILE X1 <> 160
-LINE (X1, Y1)-(X2, Y2), 0, B
-X1 = X1 + 1
-X2 = X2 - 1
-Y1 = Y1 + .625
-Y2 = Y2 - .625
-LINE (X1, Y1)-(X2, Y2), 3, B
-FOR z = 1 TO 600: NEXT
+        LINE (X1, Y1)-(X2, Y2), 0, B
+        X1 = X1 + 1
+        X2 = X2 - 1
+        Y1 = Y1 + .625
+        Y2 = Y2 - .625
+        LINE (X1, Y1)-(X2, Y2), 3, B
+
+        IF X1 MOD 6 = 0 THEN
+         WAIT &H3DA, 8: WAIT &H3DA, 8, 8
+        END IF
 WEND
+
 LINE (X1, Y1)-(X2, Y2), 0, B
 EraseVars
 Lives = Lives + 1
-Level = Level + 1
-IF Level = 31 THEN FinishGame
-IF Level = 32 THEN BeatUB
-IF Level = 33 THEN FinishPL 1
-IF Level = 34 THEN FinishPL 2
-IF Level = 35 THEN FinishPL 3
-LevelIntro
-LevelSet Level
+Level% = Level% + 1
+IF Level% = 31 THEN FinishGame
+IF Level% = 32 THEN BeatUB
+IF Level% = 33 THEN FinishPL 1
+IF Level% = 34 THEN FinishPL 2
+IF Level% = 35 THEN FinishPL 3
+
+IF Running = 1 THEN
+        LevelIntro
+        LevelSet Level%
+END IF
 
 END SUB
 
@@ -857,50 +1358,50 @@ dobj:
 SELECT CASE pp
 
 CASE 1 TO 4
-z = LCH(t, z2)
+Z = LCH(t, z2)
 
-IF LASER(z).onflag = 0 THEN LASER(z).onflag = 1 ELSE LASER(z).onflag = 0
+IF LASER(Z).onflag = 0 THEN LASER(Z).onflag = 1 ELSE LASER(Z).onflag = 0
 
-IF LASER(z).onflag = 1 THEN
- DisLas z, 0, 1
+IF LASER(Z).onflag = 1 THEN
+ DisLas Z, 0, 1
  IF sfx = 1 THEN FOR zz = 300 TO 600 STEP 50: SOUND zz, .5: SOUND zz + 100, .5: NEXT
 END IF
 
-IF LASER(z).onflag = 0 THEN
-DisLas z, 28, 1
+IF LASER(Z).onflag = 0 THEN
+DisLas Z, 28, 1
 IF sfx = 1 THEN FOR zz = 600 TO 300 STEP -50: SOUND zz, .5: SOUND zz + 100, .5: NEXT
 END IF
 
 CASE 7
-z = FFCH(t, z2)
-tempx1 = FF(z).X1
-tempx2 = FF(z).X2
-tempy1 = FF(z).Y1
-tempy2 = FF(z).Y2
-IF FF(z).onflag = 0 THEN FF(z).onflag = 1 ELSE FF(z).onflag = 0
+Z = FFCH(t, z2)
+tempx1 = FF(Z).X1
+tempx2 = FF(Z).X2
+tempy1 = FF(Z).Y1
+tempy2 = FF(Z).Y2
+IF FF(Z).onflag = 0 THEN FF(Z).onflag = 1 ELSE FF(Z).onflag = 0
 
-IF FF(z).onflag = 0 THEN
+IF FF(Z).onflag = 0 THEN
 LINE (tempx1, tempy1)-(tempx2, tempy2), 0
 IF sfx = 1 THEN FOR zz = 800 TO 37 STEP -5: SOUND zz, .05: SOUND zz + 145, .05: SOUND zz + 80, .05: NEXT
 END IF
 
 
-IF FF(z).onflag = 1 THEN
+IF FF(Z).onflag = 1 THEN
 LINE (tempx1, tempy1)-(tempx2, tempy2), 50
 IF sfx = 1 THEN FOR zz = 37 TO 800 STEP 5: SOUND zz, .05: SOUND zz + 145, .05: SOUND zz + 80, .05: NEXT
 END IF
 
 CASE 10
-z = QCH(t, z2)
-IF q(z).onflag = 0 THEN q(z).onflag = 1 ELSE q(z).onflag = 0
+Z = QCH(t, z2)
+IF q(Z).onflag = 0 THEN q(Z).onflag = 1 ELSE q(Z).onflag = 0
 
-IF q(z).onflag = 1 THEN
- DisLas z, 0, 2
+IF q(Z).onflag = 1 THEN
+ DisLas Z, 0, 2
  IF sfx = 1 THEN FOR zz = 500 TO 100 STEP -50: SOUND zz, .1: SOUND 1100 - zz, .1: NEXT
 END IF
 
-IF q(z).onflag = 0 THEN
- DisLas z, 28, 2
+IF q(Z).onflag = 0 THEN
+ DisLas Z, 28, 2
  IF sfx = 1 THEN FOR zz = 100 TO 500 STEP 50: SOUND zz, .1: SOUND 1100 - zz, .1: NEXT
 END IF
 
@@ -915,18 +1416,18 @@ LINE (0, 0)-(320, 9), 0, BF
 ON ERR GOTO 1000
 1000 IF sfx = 1 THEN SOUND 800, 1
 COLOR 3
-LOCATE 1, 1: INPUT "Save number?", sn$
+LOCATE 1, 1: INPUT "Save number?", SN$
 LOCATE 1, 1: PRINT "                "
 1002 LOCATE 1, 1: LINE INPUT "Name?", n$
 IF n$ = "*Nothing" THEN BEEP: LINE (0, 0)-(320, 9), 0, BF: GOTO 1002
-sn = VAL(sn$)
+SN = VAL(SN$)
 n$ = LEFT$(n$, 8)
 n$ = n$ + SPACE$(8 - LEN(n$))
 OPEN "GFX\SM.gfx" FOR INPUT AS #1
 OPEN "GFX\SM2.gfx" FOR OUTPUT AS #2
-FOR z = 0 TO 9
+FOR Z = 0 TO 9
  INPUT #1, null, n2$, tlevel, thealth
- IF null = sn THEN
+ IF null = SN THEN
   PRINT #2, LTRIM$(STR$(null)) + CHR$(44) + CHR$(34) + n$ + CHR$(34) + CHR$(44) + LTRIM$(STR$(Level)) + CHR$(44) + LTRIM$(STR$(health))
  ELSE
   PRINT #2, LTRIM$(STR$(null)) + CHR$(44) + CHR$(34) + n2$ + CHR$(34) + CHR$(44) + LTRIM$(STR$(tlevel)) + CHR$(44) + LTRIM$(STR$(thealth))
@@ -941,10 +1442,18 @@ LINE (0, 0)-(320, 9), 0, BF
 
 END SUB
 
+SUB SaveSavedData
+DEF SEG = VARSEG(SavedData)
+
+ON ERROR RESUME NEXT
+BSAVE "game.dat", VARPTR(SavedData), LEN(SavedData)
+DEF SEG
+END SUB
+
 SUB SetItems
 Lives = 3
 'ERASE obj
-FOR z = 1 TO 5: Keys(z) = 0: NEXT
+FOR Z = 1 TO 5: keys(Z) = 0: NEXT
 END SUB
 
 SUB ShootLaser (t)
@@ -1038,32 +1547,6 @@ GOTO nsq4
 
 END SUB
 
-SUB ShowCodes (t)
-SELECT CASE t
-CASE 1
-FOR z = 1 TO 6: ilk$(z) = "": NEXT
-LINE (0, 0)-(320, 9), 0, BF
-LOCATE 1, 1: COLOR 15: PRINT "Cheater!!! The code is "; code$
-WHILE INKEY$ <> "": WEND
-WHILE INKEY$ = "": WEND
-LINE (0, 0)-(320, 9), 0, BF
-
-CASE 2
-LINE (0, 0)-(320, 9), 0, BF
-FOR z = 2 TO 10 STEP 2
-LOCATE 1, z / 2: IF Keys(z / 2) = 1 THEN COLOR 2: PRINT LTRIM$(RTRIM$(STR$(z / 2)))
-NEXT
-WHILE INKEY$ <> "": WEND
-WHILE INKEY$ = "": WEND
-LINE (0, 0)-(320, 9), 0, BF
-END SELECT
-END SUB
-
-SUB ShutDown
-OPEN "speed.dat" FOR OUTPUT AS #1: PRINT #1, mainpause: CLOSE
-SYSTEM
-END SUB
-
 SUB SndCtrl
 IF sfx = 1 THEN sfx = 0: MsgPut "Sound Off", 1: EXIT SUB
 IF sfx = 0 THEN sfx = 1: MsgPut "Sound On", 1: SOUND 200, 1: SOUND 600, 1
@@ -1133,77 +1616,77 @@ GOTO roub
 END SUB
 
 SUB UpdateLaser
-FOR z = 1 TO Lasers
+FOR Z = 1 TO Lasers
 rsl:
-IF LASER(z).onflag = 0 THEN GOTO nextlaser
-temp = LASER(z).dir
-temp2 = LASER(z).x
-temp3 = LASER(z).y
+IF LASER(Z).onflag = 0 THEN GOTO nextlaser
+temp = LASER(Z).dir
+temp2 = LASER(Z).x
+temp3 = LASER(Z).y
 
-LASER(z).dir = temp
-IF LASER(z).dir = 1 THEN GOTO L.UP
-IF LASER(z).dir = 2 THEN GOTO L.DN
-IF LASER(z).dir = 3 THEN GOTO L.LT
-IF LASER(z).dir = 4 THEN GOTO L.RT
+LASER(Z).dir = temp
+IF LASER(Z).dir = 1 THEN GOTO L.UP
+IF LASER(Z).dir = 2 THEN GOTO L.DN
+IF LASER(Z).dir = 3 THEN GOTO L.LT
+IF LASER(Z).dir = 4 THEN GOTO L.RT
 
 nextlaser:
-IF LASER(z).shot = 0 THEN ShootLaser z
-IF LASER(z).shot = 1 THEN UpdateBeam z
+IF LASER(Z).shot = 0 THEN ShootLaser Z
+IF LASER(Z).shot = 1 THEN UpdateBeam Z
 NEXT
 EXIT SUB
 
 L.UP:
-IF LASER(z).y - 1 = LASER(z).Y1 THEN LASER(z).dir = 2: GOTO nextlaser
-IF LASER(z).y - 1 = LASER(z).Y2 THEN LASER(z).dir = 2: GOTO nextlaser
-LINE (LASER(z).x, LASER(z).y)-(LASER(z).x + 7, LASER(z).y + 10), 0, BF
-LASER(z).y = LASER(z).y - 1
-IF LASER(z).typ = 3 THEN PUT (LASER(z).x, LASER(z).y), LLT%
-IF LASER(z).typ = 4 THEN PUT (LASER(z).x, LASER(z).y), LRT%
+IF LASER(Z).y - 1 = LASER(Z).Y1 THEN LASER(Z).dir = 2: GOTO nextlaser
+IF LASER(Z).y - 1 = LASER(Z).Y2 THEN LASER(Z).dir = 2: GOTO nextlaser
+LINE (LASER(Z).x, LASER(Z).y)-(LASER(Z).x + 7, LASER(Z).y + 10), 0, BF
+LASER(Z).y = LASER(Z).y - 1
+IF LASER(Z).typ = 3 THEN PUT (LASER(Z).x, LASER(Z).y), LLT%
+IF LASER(Z).typ = 4 THEN PUT (LASER(Z).x, LASER(Z).y), LRT%
 GOTO nextlaser
 
 L.DN:
-IF LASER(z).y + 1 = LASER(z).Y1 THEN LASER(z).dir = 1: GOTO nextlaser
-IF LASER(z).y + 1 = LASER(z).Y2 THEN LASER(z).dir = 1: GOTO nextlaser
-LINE (LASER(z).x, LASER(z).y)-(LASER(z).x + 7, LASER(z).y + 10), 0, BF
-LASER(z).y = LASER(z).y + 1
-IF LASER(z).typ = 3 THEN PUT (LASER(z).x, LASER(z).y), LLT%
-IF LASER(z).typ = 4 THEN PUT (LASER(z).x, LASER(z).y), LRT%
+IF LASER(Z).y + 1 = LASER(Z).Y1 THEN LASER(Z).dir = 1: GOTO nextlaser
+IF LASER(Z).y + 1 = LASER(Z).Y2 THEN LASER(Z).dir = 1: GOTO nextlaser
+LINE (LASER(Z).x, LASER(Z).y)-(LASER(Z).x + 7, LASER(Z).y + 10), 0, BF
+LASER(Z).y = LASER(Z).y + 1
+IF LASER(Z).typ = 3 THEN PUT (LASER(Z).x, LASER(Z).y), LLT%
+IF LASER(Z).typ = 4 THEN PUT (LASER(Z).x, LASER(Z).y), LRT%
 GOTO nextlaser
 
 L.LT:
-IF LASER(z).x - 1 = LASER(z).X1 THEN LASER(z).dir = 4: GOTO nextlaser
-IF LASER(z).x - 1 = LASER(z).X2 THEN LASER(z).dir = 4: GOTO nextlaser
-LINE (LASER(z).x, LASER(z).y)-(LASER(z).x + 10, LASER(z).y + 7), 0, BF
-LASER(z).x = LASER(z).x - 1
-IF LASER(z).typ = 1 THEN PUT (LASER(z).x, LASER(z).y), LUP%
-IF LASER(z).typ = 2 THEN PUT (LASER(z).x, LASER(z).y), LDN%
+IF LASER(Z).x - 1 = LASER(Z).X1 THEN LASER(Z).dir = 4: GOTO nextlaser
+IF LASER(Z).x - 1 = LASER(Z).X2 THEN LASER(Z).dir = 4: GOTO nextlaser
+LINE (LASER(Z).x, LASER(Z).y)-(LASER(Z).x + 10, LASER(Z).y + 7), 0, BF
+LASER(Z).x = LASER(Z).x - 1
+IF LASER(Z).typ = 1 THEN PUT (LASER(Z).x, LASER(Z).y), LUP%
+IF LASER(Z).typ = 2 THEN PUT (LASER(Z).x, LASER(Z).y), LDN%
 GOTO nextlaser
 
 L.RT:
-IF LASER(z).x + 1 = LASER(z).X1 THEN LASER(z).dir = 3: GOTO nextlaser
-IF LASER(z).x + 1 = LASER(z).X2 THEN LASER(z).dir = 3: GOTO nextlaser
-LINE (LASER(z).x, LASER(z).y)-(LASER(z).x + 10, LASER(z).y + 7), 0, BF
-LASER(z).x = LASER(z).x + 1
-IF LASER(z).typ = 1 THEN PUT (LASER(z).x, LASER(z).y), LUP%
-IF LASER(z).typ = 2 THEN PUT (LASER(z).x, LASER(z).y), LDN%
+IF LASER(Z).x + 1 = LASER(Z).X1 THEN LASER(Z).dir = 3: GOTO nextlaser
+IF LASER(Z).x + 1 = LASER(Z).X2 THEN LASER(Z).dir = 3: GOTO nextlaser
+LINE (LASER(Z).x, LASER(Z).y)-(LASER(Z).x + 10, LASER(Z).y + 7), 0, BF
+LASER(Z).x = LASER(Z).x + 1
+IF LASER(Z).typ = 1 THEN PUT (LASER(Z).x, LASER(Z).y), LUP%
+IF LASER(Z).typ = 2 THEN PUT (LASER(Z).x, LASER(Z).y), LDN%
 GOTO nextlaser
 
 END SUB
 
 SUB UpdateQBeam (t)
 
-FOR z = 1 TO 4
-tx = qsx(z, t)
-ty = qsy(z, t)
-IF qs(z, t) = 1 THEN GOTO mql
+FOR Z = 1 TO 4
+tx = qsx(Z, t)
+ty = qsy(Z, t)
+IF qs(Z, t) = 1 THEN GOTO mql
 nq1:
-qsx(z, t) = tx
-qsy(z, t) = ty
+qsx(Z, t) = tx
+qsy(Z, t) = ty
 NEXT
 
 EXIT SUB
 mql:
-SELECT CASE z
+SELECT CASE Z
 CASE 1
 
 uup:
@@ -1251,87 +1734,115 @@ GOTO nq1
 
 ebeam3:
 LINE (tx, ty)-(tx, ty + 4), 0
-qs(z, t) = 0
+qs(Z, t) = 0
 GOTO nq1
 
 ebeam4:
 LINE (tx + 4, ty)-(tx, ty), 0
-qs(z, t) = 0
+qs(Z, t) = 0
 
 GOTO nq1
 
 END SUB
 
 SUB UpdateQuad
-FOR z = 1 TO qdl
-IF q(z).onflag = 0 THEN GOTO nextquad
-s1 = q(z).stp
-IF q(z).dir = 1 THEN GOTO qup
-IF q(z).dir = 2 THEN GOTO qdn
-IF q(z).dir = 3 THEN GOTO qlt
-IF q(z).dir = 4 THEN GOTO qrt
+FOR Z = 1 TO qdl
+IF q(Z).onflag = 0 THEN GOTO nextquad
+s1 = q(Z).stp
+IF q(Z).dir = 1 THEN GOTO qup
+IF q(Z).dir = 2 THEN GOTO qdn
+IF q(Z).dir = 3 THEN GOTO qlt
+IF q(Z).dir = 4 THEN GOTO qrt
 nextquad:
-ShootQuad z
-UpdateQBeam z
+ShootQuad Z
+UpdateQBeam Z
 NEXT
 EXIT SUB
 
 '*******
 qup:
-IF q(z).y = qy(z, s1) AND q(z).x = qx(z, s1) THEN GOTO changedir
-LINE (q(z).x, q(z).y)-(q(z).x + 5, q(z).y + 5), 0, BF
-q(z).y = q(z).y - 1
-PUT (q(z).x, q(z).y), QUAD%
+IF q(Z).y = qy(Z, s1) AND q(Z).x = qx(Z, s1) THEN GOTO changedir
+LINE (q(Z).x, q(Z).y)-(q(Z).x + 5, q(Z).y + 5), 0, BF
+q(Z).y = q(Z).y - 1
+PUT (q(Z).x, q(Z).y), QUAD%
 GOTO nextquad
 
 qdn:
-IF q(z).y = qy(z, s1) AND q(z).x = qx(z, s1) THEN GOTO changedir
-LINE (q(z).x, q(z).y)-(q(z).x + 5, q(z).y + 5), 0, BF
-q(z).y = q(z).y + 1
-PUT (q(z).x, q(z).y), QUAD%
+IF q(Z).y = qy(Z, s1) AND q(Z).x = qx(Z, s1) THEN GOTO changedir
+LINE (q(Z).x, q(Z).y)-(q(Z).x + 5, q(Z).y + 5), 0, BF
+q(Z).y = q(Z).y + 1
+PUT (q(Z).x, q(Z).y), QUAD%
 GOTO nextquad
 
 qlt:
-IF q(z).x = qx(z, s1) AND q(z).y = qy(z, s1) THEN GOTO changedir
-LINE (q(z).x, q(z).y)-(q(z).x + 5, q(z).y + 5), 0, BF
-q(z).x = q(z).x - 1
-PUT (q(z).x, q(z).y), QUAD%
+IF q(Z).x = qx(Z, s1) AND q(Z).y = qy(Z, s1) THEN GOTO changedir
+LINE (q(Z).x, q(Z).y)-(q(Z).x + 5, q(Z).y + 5), 0, BF
+q(Z).x = q(Z).x - 1
+PUT (q(Z).x, q(Z).y), QUAD%
 GOTO nextquad
 
 qrt:
-IF q(z).x = qx(z, s1) AND q(z).y = qy(z, s1) THEN GOTO changedir
-LINE (q(z).x, q(z).y)-(q(z).x + 5, q(z).y + 5), 0, BF
-q(z).x = q(z).x + 1
-PUT (q(z).x, q(z).y), QUAD%
+IF q(Z).x = qx(Z, s1) AND q(Z).y = qy(Z, s1) THEN GOTO changedir
+LINE (q(Z).x, q(Z).y)-(q(Z).x + 5, q(Z).y + 5), 0, BF
+q(Z).x = q(Z).x + 1
+PUT (q(Z).x, q(Z).y), QUAD%
 GOTO nextquad
 
 changedir:
 s2 = s1 + 1
-IF s2 > q(z).totstps THEN s2 = 2
-IF qx(z, s2) = q(z).x AND qy(z, s2) < q(z).y THEN q(z).dir = 1: GOTO nq2
-IF qx(z, s2) = q(z).x AND qy(z, s2) > q(z).y THEN q(z).dir = 2: GOTO nq2
-IF qx(z, s2) < q(z).x AND qy(z, s2) = q(z).y THEN q(z).dir = 3: GOTO nq2
-IF qx(z, s2) > q(z).x AND qy(z, s2) = q(z).y THEN q(z).dir = 4
+IF s2 > q(Z).totstps THEN s2 = 2
+IF qx(Z, s2) = q(Z).x AND qy(Z, s2) < q(Z).y THEN q(Z).dir = 1: GOTO nq2
+IF qx(Z, s2) = q(Z).x AND qy(Z, s2) > q(Z).y THEN q(Z).dir = 2: GOTO nq2
+IF qx(Z, s2) < q(Z).x AND qy(Z, s2) = q(Z).y THEN q(Z).dir = 3: GOTO nq2
+IF qx(Z, s2) > q(Z).x AND qy(Z, s2) = q(Z).y THEN q(Z).dir = 4
 nq2:
-q(z).stp = q(z).stp + 1
-IF q(z).stp > q(z).totstps THEN q(z).stp = 2
+q(Z).stp = q(Z).stp + 1
+IF q(Z).stp > q(Z).totstps THEN q(Z).stp = 2
 GOTO nextquad
 END SUB
 
 SUB UpdateSprites
-FOR z = 1 TO 5
-IF KeyX(z) = 0 AND KeyY(z) = 0 THEN GOTO nk
-PUT (KeyX(z), KeyY(z)), CB%, PSET
-nk:
+FOR Z = 1 TO 5
+IF KeyX(Z) <> 0 AND KeyY(Z) <> 0 THEN
+        PUT (KeyX(Z), KeyY(Z)), CB%, PSET
+END IF
 NEXT
 
 IF msg = 0 AND health > 99 AND mf = 1 THEN
-FOR z = 2 TO 10 STEP 2
-LOCATE 1, z / 2: IF Keys(z / 2) = 1 THEN COLOR 2: PRINT LTRIM$(RTRIM$(STR$(z / 2)))
+
+FOR Z = 1 TO 5
+ IF keys(Z) = 1 THEN
+  COLOR 2
+  LOCATE 1, Z
+  PRINT LTRIM$(RTRIM$(STR$(Z)))
+ END IF
 NEXT
+
 mf = 0
 END IF
 
-IF TIMER - ffu >= 2 THEN FFUpdate
+IF TIMER - ffu >= 2 THEN
+        FOR Z = 1 TO FFN
+         IF FF(Z).onflag = 1 THEN LINE (FF(Z).X1, FF(Z).Y1)-(FF(Z).X2, FF(Z).Y2), 50
+        NEXT
+        ffu = TIMER
+END IF
+
+END SUB
+
+SUB WaitForKey
+KeyboardDisable
+WaitForKeyOld
+KeyboardEnable
+END SUB
+
+SUB WaitForKeyOld
+WHILE INKEY$ <> "": WEND
+WHILE INKEY$ = "": WEND
+END SUB
+
+SUB WaitVSync
+WAIT &H3DA, 8
+WAIT &H3DA, 8, 8
 END SUB
 
