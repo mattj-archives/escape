@@ -1,28 +1,17 @@
+DECLARE SUB README ()
 DECLARE SUB RI ()
 DECLARE SUB UpdateL ()
 DECLARE SUB UpdateINLogo ()
 DECLARE SUB UpdateTitle ()
 DIM SHARED TitleCDir, TitleC, TitleCT
-DIM SHARED INL, INTIMER, I$: I$ = "I n s t r u c t i o n s"
-DIM SHARED th: th = 70
-DIM SHARED helpcol(th), help$(th)
+DIM SHARED helpcol(70), help$(70)
 
-FOR z = 1 TO th: READ helpcol(z), help$(z): NEXT
-FOR z = 1 TO th
-x$ = STRING$((80 - LEN(help$(z))), " ")
-help$(z) = help$(z) + x$
-NEXT
+RESTORE README.DATA
+FOR z = 1 TO 70: READ helpcol(z), help$(z): NEXT
 
-TitleCDir = 1: TitleC = 0: TitleCT = TIMER
-INL = 1: INTIMER = TIMER
-SCREEN 0, 0, 0
-WIDTH 80
-COLOR 1, 0: CLS
-LOCATE 1
+README
 
-RI
-SCREEN 0, 0, 0: WIDTH 80: COLOR 7, 0: CLS
-SYSTEM
+README.DATA:
 DATA 15,"PRESS SPACE TO EXIT "
 DATA 10,"          Instructions to Escape"
 DATA 14,"*****The object of the game "
@@ -95,17 +84,31 @@ DATA 9,"        Find out for yourself!!!"
 DATA 0, " "
 '67
 
-SUB RI
+SUB README
+th = 70
+I$ = "I n s t r u c t i o n s"
+
+FOR z = 1 TO th
+x$ = STRING$((80 - LEN(help$(z))), " ")
+help$(z) = help$(z) + x$
+NEXT
+
+TitleCDir = 1: TitleC = 0: TitleCT = TIMER
+INL = 1: INTIMER = TIMER
+SCREEN 0, 0, 0: WIDTH 80: COLOR 1, 0: CLS
 GOTO lnup
 topline = 1
-'VIEW PRINT 7 TO 25
 ml:
 a$ = INKEY$
 IF a$ = CHR$(0) + "H" THEN GOTO lnup
 IF a$ = CHR$(0) + "P" THEN GOTO lndn
-IF a$ = " " THEN EXIT SUB
-IF TIMER - TitleCT >= .2 THEN UpdateTitle
-IF TIMER - INTIMER >= .5 THEN UpdateINLogo
+IF a$ = " " THEN
+        SCREEN 0, 0, 0: WIDTH 80: COLOR 7, 0: CLS
+        EXIT SUB
+END IF
+
+IF TIMER - TitleCT >= .2 THEN GOSUB UpdateTitle
+IF TIMER - INTIMER >= .5 THEN GOSUB UpdateINLogo
 GOTO ml
 
 lnup:
@@ -137,9 +140,7 @@ temp = temp + 1
 NEXT
 GOTO ml
 
-END SUB
-
-SUB UpdateINLogo
+UpdateINLogo:
 FOR z = 1 TO 24
  IF z = INL THEN LOCATE 8, 27 + z: COLOR 14: PRINT MID$(I$, z, 1)
  IF z <> INL THEN LOCATE 8, 27 + z: COLOR 9: PRINT MID$(I$, z, 1)
@@ -148,9 +149,11 @@ NEXT
 INL = INL + 2
 IF INL = 25 THEN INL = 1
 INTIMER = TIMER
-END SUB
+RETURN
 
-SUB UpdateTitle
+
+UpdateTitle:
+
 TitleCT = TIMER
 IF TitleCDir = 1 THEN
  IF TitleC = 0 THEN TitleC = 8: GOTO nc
@@ -179,6 +182,9 @@ PRINT "         EEEEEEE    SSSS   C        A     A   PPPPPP   EEEEEEE"
 PRINT "         E              S  C        AAAAAAA   P        E      "
 PRINT "         E              S  C        A     A   P        E"
 PRINT "         EEEEEEE   SSSSS    CCCCCC  A     A   P        EEEEEEE"
+
+RETURN
+
 
 END SUB
 
