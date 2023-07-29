@@ -56,8 +56,10 @@ DECLARE SUB LevelSet (LevelNum AS INTEGER)
 ' External
 DECLARE SUB KeyboardEnable
 DECLARE SUB KeyboardDisable
-DECLARE SUB KeyboardLibInit (BYVAL arraySeg%, BYVAL arrayOffs%, BYVAL prevArraySeg%, BYVAL prevArrayOffs%)
+DECLARE SUB KeyboardLibInit (BYVAL arraySeg%, BYVAL arrayOffs%)
+DECLARE FUNCTION GetKey% (BYVAL keyNum%)
 DECLARE SUB PUT2 (BYVAL x%, BYVAL y%, BYVAL dataSeg%, BYVAL dataOffs%)
+DECLARE SUB ClearScreen
 
 '***********************************************************
 '*              E S C A P E   1.0                         '*
@@ -120,7 +122,7 @@ num AS INTEGER
 END TYPE
 
 TYPE TSaveGame
- name AS STRING * 80
+ Name AS STRING * 80
  Level AS INTEGER
 END TYPE
 
@@ -158,9 +160,6 @@ DIM SHARED ilk$(6), Lives: Lives = 3
 
 'sfx = 0
 
-DIM SHARED kb(128) AS INTEGER
-DIM SHARED prevKeys(128) AS INTEGER
-
 DIM SHARED SavedData AS TSavedData
 
 DIM SHARED MenuChoice%, MenuLevelWarp%
@@ -182,26 +181,25 @@ DEF SEG = VARSEG(SavedData)
 BLOAD "game.dat", VARPTR(SavedData)
 DEF SEG
 
-'qs=shot flag
-Level% = 31
+RESTORE README.DATA
+FOR z = 1 TO 70: READ helpcol(z), help$(z): NEXT
 
-'PRINT VARSEG(kb)
-'SYSTEM
+'qs=shot flag
 
 SCREEN 13
 LGFX
 KeyboardInit
-'Intro
-
+Intro
 
 DO
         Menu
-        'MenuItemChoice% = 1
+        CLS
+       
         SELECT CASE MenuChoice%
         CASE 1:
                 SetItems
                 Level% = MenuLevelWarp%
-                'LevelIntro
+                LevelIntro
                 LevelSet Level%
 
                 KeyboardOn
@@ -343,6 +341,7 @@ LOCATE 1, 1: COLOR 9: PRINT "Accessing..."
 IF sfx = 1 THEN FOR z3 = 1 TO 20: SOUND INT(RND * 500) + 137, 1: NEXT
 IF keys(minicomp(z).numreq) = 0 THEN GOTO nokey
 MsgPut "Access granted!", 1
+DrawHUD
 IF sfx = 1 THEN SOUND 1000, 4
 t = TIMER: WHILE TIMER - t < 1: WEND
 RunComp z
@@ -416,14 +415,24 @@ IF frame = 0 THEN
         'PUT (x, y), DN2%, PSET
 END IF
 CASE 3
-IF frame = 0 THEN PUT (x, y), LT1%, PSET ELSE PUT (x, y), LT2%, PSET
+IF frame = 0 THEN
+        PUT2 x, y, VARSEG(LT1%(0)), VARPTR(LT1%(0))
+        ELSE
+        PUT2 x, y, VARSEG(LT2%(0)), VARPTR(LT2%(0))
+END IF
 CASE 4
-IF frame = 0 THEN PUT (x, y), RT1%, PSET ELSE PUT (x, y), RT2%, PSET
+IF frame = 0 THEN
+        PUT2 x, y, VARSEG(RT1%(0)), VARPTR(RT1%(0))
+        ELSE
+        PUT2 x, y, VARSEG(RT2%(0)), VARPTR(RT2%(0))
+END IF
 END SELECT
 END SUB
 
 SUB DrawHUD
-LINE (0, 0)-(320, 9), 0, BF
+ClearScreen
+
+' LINE (0, 0)-(320, 9), 0, BF
 
 IF msg THEN
         LOCATE 1, 1: COLOR 3: PRINT curMessage
@@ -548,6 +557,8 @@ END SUB
 SUB HitChar (hd)
 'PLAY "mb o1 l64t255 geg-e-fded-e-cdd-ct120"
 
+IF Running = 0 THEN EXIT SUB
+
 IF sfx = 1 THEN SOUND 500, .5
 health = health - hd
 IF health < 0 THEN GOTO DIE2
@@ -572,7 +583,12 @@ PUT (x, y), DIE%
 t = TIMER: WHILE TIMER - t < 2: WEND
 LINE (x, y)-(x + 7, y + 7), 0, BF
 x = StartX: y = StartY: dir = StartDir
-Lives = Lives - 1: IF Lives = -1 THEN GameOver
+Lives = Lives - 1:
+IF Lives = -1 THEN
+        GameOver
+        EXIT SUB
+END IF
+
 LINE (0, 0)-(320, 9), 0, BF
 LOCATE 1, 1: PRINT "Lives:", Lives
 WaitForKey
@@ -703,14 +719,10 @@ Intro.ShortWait = 0
 END FUNCTION
 
 SUB KeyboardInit
-KeyboardLibInit BYVAL VARSEG(kb(0)), BYVAL VARPTR(kb(0)), BYVAL VARSEG(prevKeys(0)), BYVAL VARPTR(prevKeys(0))
+KeyboardLibInit 0, 0
 END SUB
 
 SUB KeyboardOn
-
-FOR I% = 0 TO 128
- kb(I%) = 0
-NEXT
 
 KeyboardEnable
 END SUB
@@ -942,28 +954,32 @@ Running = 1
 DO WHILE Running = 1
 
         WAIT &H3DA, 8
-
+        WAIT &H3DA, 8, 8
         curTime! = TIMER
        
         DEF SEG = &HA000
-        IF kb(72) THEN MoveUp
-        IF kb(75) THEN MoveLt
-        IF kb(77) THEN MoveRt
-        IF kb(80) THEN MoveDn
+        IF GetKey%(72) THEN MoveUp
+        IF GetKey%(75) THEN MoveLt
+        IF GetKey%(77) THEN MoveRt
+        IF GetKey%(80) THEN MoveDn
         DEF SEG
 
-IF kb(16) THEN
+IF GetKey%(16) THEN
  Running = 0
 END IF
 
-IF kb(17) THEN
- PassLevel
+IF GetKey%(17) THEN
+' PassLevel
 END IF
-'IF UCASE$(a$) = "Q" THEN ShutDown
-'IF a$ > "0" AND a$ < "Z" THEN KeyInpt a$
-IF a$ = CHR$(0) + "<" THEN SaveGame
-IF UCASE$(a$) = "S" THEN SndCtrl
 
+IF GetKey%(60) THEN
+        KeyboardDisable
+        SaveGame
+        KeyboardOn
+END IF
+
+'IF a$ > "0" AND a$ < "Z" THEN KeyInpt a$
+IF UCASE$(a$) = "S" THEN SndCtrl
 
 IF msg = 1 AND curTime! - msgt >= 2 THEN
         msg = 0
@@ -983,14 +999,9 @@ IF qdl > 0 THEN UpdateQuad
 UpdateSprites
 
 FOR z = 1 TO Lasers
-  'offs% = (LASER(z).typ * 145)
-
 
   'PUT (LASER(z).x, LASER(z).y), SPRITE.LASER%(LASER(z).typ * 145), PSET
-  'PUT (LASER(z).x, LASER(z).y), SPRITE.LASER%(offs%), PSET
 
-'        LINE (LASER(z).x, LASER(z).y)-(LASER(z).x + 10, LASER(z).y + 10), 10, BF
-  'PUT2 LASER(z).x, LASER(z).y, VARSEG(SPRITE.LASER%(offs%)), VARPTR(SPRITE.LASER%(offs%))
 SELECT CASE LASER(z).typ
 CASE 1:
   PUT2 LASER(z).x, LASER(z).y, VARSEG(SPRITE.LASER%(145)), VARPTR(SPRITE.LASER%(145))
@@ -1009,7 +1020,7 @@ IF redrawHUD THEN
         DrawHUD
 END IF
 
-LOCATE 1: COLOR 15: PRINT kb(72); kb(80); kb(75); kb(77)
+'LOCATE 1: COLOR 15: PRINT GetKey%(72); GetKey%(80); GetKey%(75); GetKey%(77)
 LOOP
 END SUB
 
@@ -1049,6 +1060,8 @@ GET (0, 0)-(6, 6), AR%
 ST:
 Main:
 CLS
+LOCATE 24, 35: COLOR 7: PRINT "v1.1";
+
 Main2:
 PUT (60, AY), AR%, XOR
 
@@ -1100,14 +1113,13 @@ GOTO Main2
 
 MenuDown:
 td = 2: c = 31
-'PUT (60, AY), AR%, XOR
+PUT (60, AY), AR%, XOR
 FOR MA = 1 TO 8
         AY = AY + 1
         PUT (60, AY), AR%, XOR
         t = TIMER: WHILE TIMER - t < .001: WEND
-        PUT (60, AY), AR%, XOR
-
-
+        'PUT (60, AY), AR%, XOR
+        GOSUB drawArrow
         IF td = 2 AND c >= 16 THEN c = c - 4: IF c <= 15 THEN c = 16: td = 1: GOTO pl2
         IF td = 1 AND c <= 32 THEN c = c + 4: IF c >= 32 THEN c = 31: td = 0
 
@@ -1137,7 +1149,7 @@ IF M = 3 THEN
         GOTO Main
 END IF
 IF M = 4 THEN GOTO ReadThis
-IF M = 5 THEN GOTO Quit
+IF M = 5 THEN GOTO quit
 '**********************************PLAY GAME
 PlayGame:
 MenuLevelWarp% = 1
@@ -1150,43 +1162,47 @@ LoadGame:
 COLOR 32
 '***********
 
-OPEN "gfx\sm.gfx" FOR INPUT AS #1
 COLOR 32: LOCATE 1, 1: PRINT "#"; "   Name"; "      Level";
-FOR SI = 0 TO 9
-INPUT #1, null, SN$(SI), SL(SI), SH(SI)
-LOCATE SI + 2, 1: PRINT SI; SN$(SI); "    "; SL(SI); "       "
+FOR SI = 1 TO 4
+LOCATE SI + 2, 1
+COLOR 32
+PRINT SI;
+IF SavedData.saveGames(SI).Level = 0 THEN
+COLOR 8: PRINT "<empty>"
+ELSE
+PRINT RTRIM$(SavedData.saveGames(SI).Name); "    ";
+PRINT SavedData.saveGames(SI).Level; "       "
+END IF
 NEXT
-CLOSE
+
 '***********
 ReStartLoad:
 LOCATE 17, 1: COLOR 32: PRINT "ENTER 99 TO EXIT"
 FB = Menu.GetFName
-IF FB = 99 THEN CLOSE : GOTO QL
-IF FB < 0 OR FB > 9 THEN BEEP: GOTO ReStartLoad
-IF SN$(FB) = "*Nothing" THEN BEEP: GOTO ReStartLoad
-GOTO MLG
+IF FB = 99 THEN GOTO LoadValid
+IF FB < 1 OR FB > 4 THEN BEEP: GOTO ReStartLoad
+IF SavedData.saveGames(FB).Level = 0 THEN BEEP: GOTO ReStartLoad
+
 '************************
-QL:
+LoadValid:
+
 FOR z = 31 TO 16 STEP -1
         LOCATE 16, 1: COLOR z: PRINT "Enter 0-9>"
         t = TIMER: WHILE TIMER - t < .001: WEND
 NEXT
-GOTO ST
+
+IF FB = 99 THEN GOTO ST
 
 MLG:
-OPEN "LG.FLG" FOR OUTPUT AS #1: PRINT #1, FB: CLOSE
-OPEN "LW.CHK" FOR OUTPUT AS #1: PRINT #1, -1: CLOSE
-FOR z = 31 TO 16 STEP -1
-        LOCATE 16, 1: COLOR z: PRINT "Enter 0-9>"
-        t = TIMER: WHILE TIMER - t < .001: WEND
-NEXT
-SYSTEM
+MenuLevelWarp% = SavedData.saveGames(FB).Level
+MenuChoice% = 1
+EXIT SUB
 '***********************************************PASSWORD
 
 ReadThis:
 EXIT SUB
 
-Quit:
+quit:
 COLOR 4
 PRINT "QUIT??!!!! TYPE Y OR N"
 QUITLOOP:
@@ -1210,6 +1226,9 @@ NEXT
 GOTO ST
 
 
+drawArrow:
+        PUT (60, AY), AR%, XOR
+RETURN
 END SUB
 
 FUNCTION Menu.GetFName
@@ -1356,13 +1375,6 @@ IF LWW = 1 THEN
 MenuLevelWarp% = LevelStart
 
 EXIT SUB
-' TODO
-
-'OPEN "LW.CHK" FOR OUTPUT AS #1: PRINT #1, LevelStart: CLOSE
-'OPEN "PG.FLG" FOR OUTPUT AS #1
-'PRINT #1, "FLAG ON"
-'CLOSE
-'SYSTEM
 END IF
 
 GOTO rsp
@@ -1531,6 +1543,7 @@ END SUB
 
 SUB README
 th = 70
+done = 0
 I$ = "I n s t r u c t i o n s"
 
 FOR z = 1 TO th
@@ -1547,13 +1560,17 @@ ml:
 a$ = INKEY$
 IF a$ = CHR$(0) + "H" THEN GOTO lnup
 IF a$ = CHR$(0) + "P" THEN GOTO lndn
-IF a$ = " " THEN
-        SCREEN 0, 0, 0: WIDTH 80: COLOR 7, 0: CLS
-        EXIT SUB
-END IF
+IF UCASE$(a$) = "Q" THEN done = 1
+IF a$ = " " THEN done = 1
+IF a$ = CHR$(27) THEN done = 1
 
 IF TIMER - TitleCT >= .2 THEN GOSUB UpdateTitle
 IF TIMER - INTIMER >= .5 THEN GOSUB UpdateINLogo
+
+IF done THEN
+        SCREEN 0, 0, 0: WIDTH 80: COLOR 7, 0: CLS
+        EXIT SUB
+END IF
 GOTO ml
 
 lnup:
@@ -1710,34 +1727,27 @@ IF pp = 10 THEN GOTO do4
 END SUB
 
 SUB SaveGame
+EnterNumber:
 LINE (0, 0)-(320, 9), 0, BF
-ON ERR GOTO 1000
-1000 IF sfx = 1 THEN SOUND 800, 1
-COLOR 3
-LOCATE 1, 1: INPUT "Save number?", SN$
-LOCATE 1, 1: PRINT "                "
-1002 LOCATE 1, 1: LINE INPUT "Name?", n$
-IF n$ = "*Nothing" THEN BEEP: LINE (0, 0)-(320, 9), 0, BF: GOTO 1002
-SN = VAL(SN$)
-n$ = LEFT$(n$, 8)
-n$ = n$ + SPACE$(8 - LEN(n$))
-OPEN "GFX\SM.gfx" FOR INPUT AS #1
-OPEN "GFX\SM2.gfx" FOR OUTPUT AS #2
-FOR z = 0 TO 9
- INPUT #1, null, n2$, tlevel, thealth
- IF null = SN THEN
-  PRINT #2, LTRIM$(STR$(null)) + CHR$(44) + CHR$(34) + n$ + CHR$(34) + CHR$(44) + LTRIM$(STR$(Level)) + CHR$(44) + LTRIM$(STR$(health))
- ELSE
-  PRINT #2, LTRIM$(STR$(null)) + CHR$(44) + CHR$(34) + n2$ + CHR$(34) + CHR$(44) + LTRIM$(STR$(tlevel)) + CHR$(44) + LTRIM$(STR$(thealth))
- END IF
-NEXT
+IF sfx = 1 THEN SOUND 800, 1
 
-CLOSE
-CLOSE
-KILL "gfx\sm.gfx"
-NAME "gfx\sm2.gfx" AS "gfx\sm.gfx"
+COLOR 3: LOCATE 1, 1: INPUT "Save number?", num$
+SN% = VAL(num$)
+
+IF SN% < 1 OR SN% > 4 THEN BEEP: GOTO EnterNumber
+
+EnterName:
+LINE (0, 0)-(320, 9), 0, BF
+LOCATE 1, 1: LINE INPUT "Name?", n$
+
+n$ = LEFT$(LTRIM$(RTRIM$(n$)), 20)
+IF LEN(n$) = 0 THEN BEEP: GOTO EnterName
+
+SavedData.saveGames(SN%).Name = n$
+SavedData.saveGames(SN%).Level = Level%
 LINE (0, 0)-(320, 9), 0, BF
 
+SaveSavedData
 END SUB
 
 SUB SaveSavedData
@@ -1762,7 +1772,7 @@ IF x > LASER(t).x - 1 AND x < LASER(t).x + 12 THEN
 LASER(t).shotdir = 1
 LASER(t).shotx = LASER(t).x + 5
 LASER(t).shoty = LASER(t).y
-PUT (LASER(t).shotx, LASER(t).shoty), LV%
+'PUT2 LASER(t).shotx, LASER(t).shoty, VARSEG(LV%(0)), VARPTR(LV%(0))
 LASER(t).shot = 1
 END IF
 
@@ -1771,7 +1781,7 @@ IF x > LASER(t).x - 1 AND x < LASER(t).x + 12 THEN
 LASER(t).shotdir = 2
 LASER(t).shotx = LASER(t).x + 5
 LASER(t).shoty = LASER(t).y + 2
-PUT (LASER(t).shotx, LASER(t).shoty), LV%
+'PUT2 LASER(t).shotx, LASER(t).shoty, VARSEG(LV%(0)), VARPTR(LV%(0))
 LASER(t).shot = 1
 END IF
 
@@ -1780,7 +1790,7 @@ IF y > LASER(t).y - 1 AND y < LASER(t).y + 12 THEN
 LASER(t).shotdir = 3
 LASER(t).shotx = LASER(t).x + 1
 LASER(t).shoty = LASER(t).y + 5
-PUT (LASER(t).shotx, LASER(t).shoty), LH%
+'PUT2 LASER(t).shotx, LASER(t).shoty, VARSEG(LH%(0)), VARPTR(LH%(0))
 LASER(t).shot = 1
 END IF
 
@@ -1789,7 +1799,7 @@ IF y > LASER(t).y - 1 AND y < LASER(t).y + 12 THEN
 LASER(t).shotdir = 4
 LASER(t).shotx = LASER(t).x + 2
 LASER(t).shoty = LASER(t).y + 5
-PUT (LASER(t).shotx, LASER(t).shoty), LH%
+'PUT2 LASER(t).shotx, LASER(t).shoty, VARSEG(LH%(0)), VARPTR(LH%(0))
 LASER(t).shot = 1
 END IF
 
@@ -2097,7 +2107,7 @@ END SUB
 SUB UpdateSprites
 FOR z = 1 TO 5
 IF KeyX(z) <> 0 AND KeyY(z) <> 0 THEN
-        PUT (KeyX(z), KeyY(z)), CB%, PSET
+        PUT2 KeyX(z), KeyY(z), VARSEG(CB%(0)), VARPTR(CB%(0))
 END IF
 NEXT
 
