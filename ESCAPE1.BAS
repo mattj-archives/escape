@@ -1,3 +1,6 @@
+DECLARE SUB DrawHUD ()
+DECLARE SUB PlaySFX (sfxNum AS INTEGER)
+DECLARE SUB README ()
 DECLARE SUB KeyboardOn ()
 DECLARE SUB WaitForKeyOld ()
 DECLARE SUB Menu ()
@@ -54,11 +57,14 @@ DECLARE SUB LevelSet (LevelNum AS INTEGER)
 DECLARE SUB KeyboardEnable
 DECLARE SUB KeyboardDisable
 DECLARE SUB KeyboardLibInit (BYVAL arraySeg%, BYVAL arrayOffs%, BYVAL prevArraySeg%, BYVAL prevArrayOffs%)
+DECLARE SUB PUT2 (BYVAL x%, BYVAL y%, BYVAL dataSeg%, BYVAL dataOffs%)
+
 '***********************************************************
 '*              E S C A P E   1.0                         '*
 '***********************************************************
 '*****************************************************
-DIM SHARED LUP%(45), LDN%(45), LLT%(45), LRT%(45)
+DIM SHARED SPRITE.LASER%(145 * 5)
+
 DIM SHARED UP1%(33), UP2%(33), DN1%(33), DN2%(33)
 DIM SHARED LT1%(33), LT2%(33), RT1%(33), RT2%(33)
 DIM SHARED LIFE%(33), MC%(9), CBI1%(17), QUAD%(14), HEART%(14)
@@ -140,12 +146,17 @@ DIM SHARED x, y
 DIM SHARED Level%
 DIM SHARED lft, ltime: lft = .05
 DIM SHARED health, ht: health = 100
+
 DIM SHARED msg, msgt
+DIM SHARED curMessage AS STRING
+
 DIM SHARED StartX, StartY, StartDir
 DIM SHARED q(4) AS qd
 DIM SHARED qx(4, 15), qy(4, 15), qs(4, 4), qsx(4, 4), qsy(4, 4), qdl
 DIM SHARED mf, s1, lf, ffu, sfx, mainpause: mf = 0: sfx = 1
 DIM SHARED ilk$(6), Lives: Lives = 3
+
+'sfx = 0
 
 DIM SHARED kb(128) AS INTEGER
 DIM SHARED prevKeys(128) AS INTEGER
@@ -157,6 +168,15 @@ DIM SHARED MenuChoice%, MenuLevelWarp%
 ' Is level running?
 DIM SHARED Running AS INTEGER: Running = 1
 
+' Instructions
+
+DIM SHARED TitleCDir, TitleC, TitleCT
+DIM SHARED helpcol(70), help$(70)
+
+DIM SHARED redrawHUD AS INTEGER
+
+' Entry point
+
 ON ERROR RESUME NEXT
 DEF SEG = VARSEG(SavedData)
 BLOAD "game.dat", VARPTR(SavedData)
@@ -165,21 +185,31 @@ DEF SEG
 'qs=shot flag
 Level% = 31
 
+'PRINT VARSEG(kb)
+'SYSTEM
+
 SCREEN 13
 LGFX
 KeyboardInit
-Intro
+'Intro
+
 
 DO
         Menu
+        'MenuItemChoice% = 1
         SELECT CASE MenuChoice%
         CASE 1:
                 SetItems
                 Level% = MenuLevelWarp%
-                LevelIntro
+                'LevelIntro
                 LevelSet Level%
+
+                KeyboardOn
                 MainLoop
                 KeyboardDisable
+        CASE 4:
+                README
+                SCREEN 13
         CASE 5:
                 EXIT DO
         END SELECT
@@ -188,14 +218,90 @@ LOOP
 SaveSavedData
 
 SCREEN 0: WIDTH 80
+SYSTEM
+
+
+
+README.DATA:
+DATA 15,"PRESS SPACE TO EXIT "
+DATA 10,"          Instructions to Escape"
+DATA 14,"*****The object of the game "
+DATA 0," "
+DATA 9, "       The object of this game is to pass each level - sounds simple?"
+DATA 9, "This game has no storyline. There are 30 main levels in this game,"
+DATA 9, "and each usually involves walking about the screen, picking up"
+DATA 9, "computer cards, shutting down force feilds, and leaving the level"
+DATA 9, "without geting hit by the moving laser cannons along the walls."
+DATA 0," "
+DATA 14,"*****Moving"
+DATA 0, " "
+DATA 9, "       The only keys you'll only ever really need in this game are the"
+DATA 9, "arrow keys. All you need to do is move around."
+DATA 0, " "
+DATA 14,"*****Laser cannons"
+DATA 0, " "
+DATA 9, "       The first thing you will meet in this game are the laser cannons.
+DATA 9, "They are smart, and shoot at you if they detect you. If you are hit by"
+DATA 9, "a laser cannon, you lose 10% of your health points."
+DATA 0," "
+DATA 14,"*****Quad laser cannons"
+DATA 0," "
+DATA 9, "       The red + shaped things you see in level 5+ can shoot in four
+DATA 9, "directions. They are also smart, and they move on their own `tracks'"
+DATA 9, "throughout the level."
+DATA 0," "
+DATA 14,"*****Health"
+DATA 0," "
+DATA 9,"        Your health is displayed at the top of the screen if it is"
+DATA 9,"below 100% You will die if your health is below 1%. Then you will restart"
+DATA 9,"the level, but you will still have the computer hards that you would have"
+DATA 9,"already collected."
+DATA 0," "
+DATA 14,"*****Computer cards"
+DATA 0," "
+DATA 9,"        The computer cards have their own specific number. They must be"
+DATA 9,"inserted in the right number of computer in order or work. They are"
+DATA 9,"abbreaviated CC. To veiw the numbers of CCs you have, press + during the"
+DATA 9,"game."
+DATA 0," "
+DATA 14,"*****Level codes"
+DATA 0," "
+DATA 9,"        When you start a level, you revieve a four letter code. When you"
+DATA 9,"pass that level, you are asked to type it in. It MUST be in capital"
+DATA 9,"letters. If you enter the incorrect code, your DEAD! You will restart"
+DATA 9,"the level with a new code."
+DATA 0," "
+DATA 14,"*****Force feilds"
+DATA 0," "
+DATA 9,"        Don't touch the green lines!!! You'll lose 30% health!!!"
+DATA 0," "
+DATA 14,"*****Those grey boxes"
+DATA 0," "
+DATA 9,"        Grey boxes around a laser cannon or a quad laser mean it's"
+DATA 9,"disabled. Computer terminals in the game can change that..."
+DATA 0," "
+DATA 14,"*****Practice levels"
+DATA 0," "
+DATA 9,"        Why I added these, I don't know..."
+DATA 0," "
+DATA 14,"*****Saving games"
+DATA 0," "
+DATA 9,"        Press F2 during a game, enter a number between 0 and 9, and then"
+DATA 9,"an 8-letter word."
+DATA 0," "
+DATA 15,"*****Everything else"
+DATA 9, " "
+DATA 9,"        Find out for yourself!!!"
+DATA 0, " "
+'67
 
 SUB BeatUB
 CLS
 SavedData.bonusLevels(1) = 2
 
 finishedCount% = 0
-FOR i = 1 TO 4
- IF SavedData.bonusLevels(i) = 2 THEN finishedCount% = finishedCount% + 1
+FOR I = 1 TO 4
+ IF SavedData.bonusLevels(I) = 2 THEN finishedCount% = finishedCount% + 1
 NEXT
 
 IF finishedCount% = 4 THEN
@@ -222,9 +328,9 @@ IF dir = 1 THEN ty = ty - 1
 IF dir = 2 THEN ty = ty + 1
 IF dir = 3 THEN tx = tx - 1
 IF dir = 4 THEN tx = tx + 1
-FOR Z = 1 TO tempmcomp
-IF tx >= minicomp(Z).x AND tx <= minicomp(Z).x + minicomp(Z).limx THEN
-IF ty >= minicomp(Z).y AND ty <= minicomp(Z).y + minicomp(Z).limy THEN
+FOR z = 1 TO tempmcomp
+IF tx >= minicomp(z).x AND tx <= minicomp(z).x + minicomp(z).limx THEN
+IF ty >= minicomp(z).y AND ty <= minicomp(z).y + minicomp(z).limy THEN
  GOTO gk2
  END IF
 END IF
@@ -235,14 +341,14 @@ gk2:
 LINE (0, 0)-(320, 9), 0, BF
 LOCATE 1, 1: COLOR 9: PRINT "Accessing..."
 IF sfx = 1 THEN FOR z3 = 1 TO 20: SOUND INT(RND * 500) + 137, 1: NEXT
-IF keys(minicomp(Z).numreq) = 0 THEN GOTO nokey
+IF keys(minicomp(z).numreq) = 0 THEN GOTO nokey
 MsgPut "Access granted!", 1
 IF sfx = 1 THEN SOUND 1000, 4
 t = TIMER: WHILE TIMER - t < 1: WEND
-RunComp Z
+RunComp z
 GOTO es
 nokey:
-MsgPut "You are missing CC" + STR$(minicomp(Z).numreq), 1
+MsgPut "You are missing CC" + STR$(minicomp(z).numreq), 1
 IF sfx = 1 THEN SOUND 50, 4
 es:
 WHILE INKEY$ <> "": WEND
@@ -269,16 +375,16 @@ END SUB
 
 SUB DisLas2 (t, t2)
 
-FOR Z = 1 TO Lasers
-IF LASER(Z).onflag = 0 THEN
-DisLas Z, 28, 1
+FOR z = 1 TO Lasers
+IF LASER(z).onflag = 0 THEN
+DisLas z, 28, 1
 IF sfx = 1 THEN FOR zz = 600 TO 300 STEP -50: SOUND zz, .5: SOUND zz + 100, .5: NEXT
 END IF
 NEXT
 
-FOR Z = 1 TO qdl
-IF q(Z).onflag = 0 THEN
-DisLas Z, 28, 2
+FOR z = 1 TO qdl
+IF q(z).onflag = 0 THEN
+DisLas z, 28, 2
 IF sfx = 1 THEN FOR zz = 100 TO 500 STEP 50: SOUND zz, .1: SOUND 1100 - zz, .1: NEXT
 END IF
 NEXT
@@ -294,14 +400,50 @@ END IF
 
 SELECT CASE dir
 CASE 1
-IF frame = 0 THEN PUT (x, y), UP1%, PSET ELSE PUT (x, y), UP2%, PSET
+IF frame = 0 THEN
+        'PUT (x, y), UP1%, PSET
+        PUT2 x, y, VARSEG(UP1%(0)), VARPTR(UP1%(0))
+        ELSE
+        'PUT (x, y), UP2%, PSET
+        PUT2 x, y, VARSEG(UP2%(0)), VARPTR(UP2%(0))
+END IF
 CASE 2
-IF frame = 0 THEN PUT (x, y), DN1%, PSET ELSE PUT (x, y), DN2%, PSET
+IF frame = 0 THEN
+        PUT2 x, y, VARSEG(DN1%(0)), VARPTR(DN1%(0))
+        'PUT (x, y), DN1%, PSET
+        ELSE
+        PUT2 x, y, VARSEG(DN2%(0)), VARPTR(DN2%(0))
+        'PUT (x, y), DN2%, PSET
+END IF
 CASE 3
 IF frame = 0 THEN PUT (x, y), LT1%, PSET ELSE PUT (x, y), LT2%, PSET
 CASE 4
 IF frame = 0 THEN PUT (x, y), RT1%, PSET ELSE PUT (x, y), RT2%, PSET
 END SELECT
+END SUB
+
+SUB DrawHUD
+LINE (0, 0)-(320, 9), 0, BF
+
+IF msg THEN
+        LOCATE 1, 1: COLOR 3: PRINT curMessage
+ELSEIF health < 100 THEN
+         COLOR 3: LOCATE 1, 1: PRINT "Health: "; LTRIM$(RTRIM$(STR$(health))); "%"
+         LINE (100, 0)-(200, 8), 4, B
+         LINE (100, 0)-(100 + health, 8), 4, BF
+ELSE
+        FOR z = 1 TO 5
+         IF keys(z) = 1 THEN
+          COLOR 2
+          LOCATE 1, z
+          PRINT LTRIM$(RTRIM$(STR$(z)))
+         END IF
+        NEXT
+
+END IF
+
+
+
 END SUB
 
 SUB EraseVars
@@ -347,57 +489,59 @@ Running = 0
 END SUB
 
 SUB FO (tx, ty, t$)
-FOR Z = 16 TO 31
-        LOCATE tx, ty: COLOR Z: PRINT t$
+FOR z = 16 TO 31
+        LOCATE tx, ty: COLOR z: PRINT t$
         t = TIMER: WHILE TIMER - t < .001: WEND
 NEXT
 
 END SUB
 
 SUB GameOver
-FOR Z = 1 TO 300
-CIRCLE (160, 100), Z, 4
-IF Z MOD 8 = 0 THEN
+FOR z = 1 TO 300
+CIRCLE (160, 100), z, 4
+IF z MOD 8 = 0 THEN
  WAIT &H3DA, 8: WAIT &H3DA, 8, 8
 END IF
 NEXT
-FOR Z = 41 TO 1 STEP -1
-PALETTE 4, 65536 * 0 + 256 * 0 + Z
+FOR z = 41 TO 1 STEP -1
+PALETTE 4, 65536 * 0 + 256 * 0 + z
  WAIT &H3DA, 8: WAIT &H3DA, 8, 8
 NEXT
 CLS
 COLOR 4: LOCATE 10, 14: PRINT "Game Over!!!"
-FOR Z = 1 TO 41
-PALETTE 4, 65536 * 0 + 256 * 0 + Z
+FOR z = 1 TO 41
+PALETTE 4, 65536 * 0 + 256 * 0 + z
  WAIT &H3DA, 8: WAIT &H3DA, 8, 8
 NEXT
 t = TIMER: WHILE TIMER - t < 2: WEND
-FOR Z = 41 TO 1 STEP -1
-PALETTE 4, 65536 * 0 + 256 * 0 + Z
+FOR z = 41 TO 1 STEP -1
+PALETTE 4, 65536 * 0 + 256 * 0 + z
  WAIT &H3DA, 8: WAIT &H3DA, 8, 8
 NEXT
 Running = 0
 END SUB
 
 SUB GotKey
-FOR Z = 1 TO 6
-IF x > KeyX(Z) AND x < KeyX(Z) + 6 THEN
- IF y > KeyY(Z) AND y < KeyY(Z) + 6 THEN
-  IF sfx = 1 THEN FOR z2 = 500 TO 4000 STEP 500: SOUND z2, .1: SOUND z2 + 500, .1: NEXT
-  GOTO gk
- END IF
-END IF
+FOR z = 1 TO 6
+
+IF x + 8 < KeyX(z) THEN GOTO nextkey
+IF x > KeyX(z) + 6 THEN GOTO nextkey
+IF y + 8 < KeyY(z) THEN GOTO nextkey
+IF y > KeyY(z) + 6 THEN GOTO nextkey
+
+GOTO gk
+
+nextkey:
 NEXT
 EXIT SUB
 gk:
-LINE (KeyX(Z), KeyY(Z))-(KeyX(Z) + 6, KeyY(Z) + 6), 0, BF
-keys(Z) = 1
-KeyX(Z) = 0: KeyY(Z) = 0
-IF mf = 0 THEN
-FOR Z = 2 TO 12 STEP 2
-LOCATE 1, Z / 2: IF keys(Z / 2) = 1 THEN COLOR 2: PRINT LTRIM$(RTRIM$(STR$(Z / 2)))
-NEXT
-END IF
+PlaySFX 1
+
+LINE (KeyX(z), KeyY(z))-(KeyX(z) + 6, KeyY(z) + 6), 0, BF
+keys(z) = 1
+KeyX(z) = 0: KeyY(z) = 0
+redrawHUD = 1
+
 DrawCharacter dir
 END SUB
 
@@ -407,20 +551,20 @@ SUB HitChar (hd)
 IF sfx = 1 THEN SOUND 500, .5
 health = health - hd
 IF health < 0 THEN GOTO DIE2
-LINE (100, 0)-(200, 8), 0, BF
-LINE (100, 0)-(200, 8), 4, B
-LINE (100, 0)-(100 + health, 8), 4, BF
+redrawHUD = 1
+
 EXIT SUB
 
 DIE2:
-FOR Z = 1 TO 5
-CIRCLE (x + 3, y + 3), Z, 4
-IF sfx = 1 THEN SOUND 0, 2
+FOR z = 1 TO 5
+CIRCLE (x + 3, y + 3), z, 4
+IF sfx = 1 THEN SOUND 30, .02
+WaitVSync
 NEXT
 
-FOR Z = 1 TO 5
-CIRCLE (x + 3, y + 3), Z, 0
-IF sfx = 1 THEN SOUND 0, 2
+FOR z = 1 TO 5
+CIRCLE (x + 3, y + 3), z, 0
+IF sfx = 1 THEN SOUND 30, 2
 NEXT
 
 LINE (x, y)-(x + 7, y + 7), 0, BF
@@ -442,12 +586,12 @@ WHILE INKEY$ <> "": WEND
 END SUB
 
 SUB Intro
-FOR Z = 1 TO 15
-SIZE$ = STR$(Z)
+FOR z = 1 TO 15
+SIZE$ = STR$(z)
 SIZE$ = LTRIM$(SIZE$)
 XY1$ = "C2 S" + SIZE$
 tx = 0: ty = 70
-x = 160 - (Z * 10): y = 100 - (Z * 2)
+x = 160 - (z * 10): y = 100 - (z * 2)
 SX$ = STR$(x)
 SY$ = STR$(y)
 SX$ = LTRIM$(SX$)
@@ -504,9 +648,9 @@ DRAW XY1$
 IF Intro.ShortWait(2) THEN EXIT SUB
 
 tr = 0: tg = 0: tb = 1
-FOR Z = 41 TO 1 STEP -1
-PALETTE 1, 65536 * Z + 256 * 0 + 0
-PALETTE 4, 65536 * 0 + 256 * 0 + Z
+FOR z = 41 TO 1 STEP -1
+PALETTE 1, 65536 * z + 256 * 0 + 0
+PALETTE 4, 65536 * 0 + 256 * 0 + z
 
 IF Intro.ShortWait(.01) THEN EXIT SUB
 
@@ -514,32 +658,32 @@ NEXT
 
 COLOR 4: LOCATE 20, 10: PRINT "By Matthew Johnson"
 
-FOR Z = 0 TO 63
-PALETTE 4, 65536 * 0 + 256 * 0 + Z
+FOR z = 0 TO 63
+PALETTE 4, 65536 * 0 + 256 * 0 + z
 
 IF Intro.ShortWait(.01) THEN EXIT SUB
 NEXT
 
 IF Intro.ShortWait(1) THEN EXIT SUB
 
-FOR Z = 41 TO 0 STEP -1
-PALETTE 2, 65536 * 0 + 256 * Z + 0
+FOR z = 41 TO 0 STEP -1
+PALETTE 2, 65536 * 0 + 256 * z + 0
 IF Intro.ShortWait(.01) THEN EXIT SUB
 NEXT
 
-FOR Z = 63 TO 0 STEP -1
-PALETTE 4, 65536 * 0 + 256 * 0 + Z
+FOR z = 63 TO 0 STEP -1
+PALETTE 4, 65536 * 0 + 256 * 0 + z
 IF Intro.ShortWait(.01) THEN EXIT SUB
 NEXT
 CLS
 COLOR 4: LOCATE 10, 10: PRINT "Escape... If you can..."
-FOR Z = 0 TO 63
-PALETTE 4, 65536 * 0 + 256 * 0 + Z
+FOR z = 0 TO 63
+PALETTE 4, 65536 * 0 + 256 * 0 + z
 IF Intro.ShortWait(.01) THEN EXIT SUB
 NEXT
 ts = TIMER: WHILE TIMER - ts < 2: WEND
-FOR Z = 63 TO 0 STEP -1
-PALETTE 4, 65536 * 0 + 256 * 0 + Z
+FOR z = 63 TO 0 STEP -1
+PALETTE 4, 65536 * 0 + 256 * 0 + z
 IF Intro.ShortWait(.01) THEN EXIT SUB
 NEXT
 
@@ -564,8 +708,8 @@ END SUB
 
 SUB KeyboardOn
 
-FOR i% = 0 TO 128
- kb(i%) = 0
+FOR I% = 0 TO 128
+ kb(I%) = 0
 NEXT
 
 KeyboardEnable
@@ -573,18 +717,18 @@ END SUB
 
 SUB KeyInpt (t$)
 IF ilk$(6) <> "" OR ilk$(6) = "" AND ilk$(5) = "" THEN
- FOR Z = 1 TO 5: ilk$(Z) = ilk$(Z + 1): NEXT
+ FOR z = 1 TO 5: ilk$(z) = ilk$(z + 1): NEXT
 ilk$(6) = t$
 GOTO EIF1
 ELSE
-FOR Z = 1 TO 5
- IF ilk$(Z) = "" THEN ilk$(Z) = t$: GOTO EIF1
+FOR z = 1 TO 5
+ IF ilk$(z) = "" THEN ilk$(z) = t$: GOTO EIF1
 NEXT
 EIF1:
 END IF
 k$ = ""
-FOR Z = 1 TO 6
- k$ = k$ + ilk$(Z)
+FOR z = 1 TO 6
+ k$ = k$ + ilk$(z)
 NEXT
 ' IF k$ = "BSY141" THEN ShowCodes 1
 END SUB
@@ -607,22 +751,21 @@ PALETTE 1, 65536 * 0 + 256 * 0 + 0
 PALETTE 4, 65536 * 0 + 256 * 0 + 0
 COLOR 4: LOCATE 10, col: PRINT X2$
 COLOR 4: LOCATE 12, 5: PRINT "Lives remaining:"; Lives
-FOR Z = 1 TO 41
-PALETTE 1, 65536 * Z + 256 * 0 + 0
-PALETTE 4, 65536 * 0 + 256 * 0 + Z
+FOR z = 1 TO 41
+PALETTE 1, 65536 * z + 256 * 0 + 0
+PALETTE 4, 65536 * 0 + 256 * 0 + z
 WAIT &H3DA, 8: WAIT &H3DA, 8, 8
 NEXT
 LOCATE 24, 1: COLOR 5: PRINT "Press a key...";
 WaitForKey
-FOR Z = 41 TO 1 STEP -1
-PALETTE 1, 65536 * Z + 256 * 0 + 0
-PALETTE 4, 65536 * 0 + 256 * 0 + Z
+FOR z = 41 TO 1 STEP -1
+PALETTE 1, 65536 * z + 256 * 0 + 0
+PALETTE 4, 65536 * 0 + 256 * 0 + z
 WAIT &H3DA, 8: WAIT &H3DA, 8, 8
 NEXT
 CLS
 PALETTE 1, 65536 * 41 + 256 * 0 + 0
 PALETTE 4, 65536 * 0 + 256 * 0 + 41
-KeyboardOn
 END SUB
 
 SUB LevelSet (LevelNum AS INTEGER)
@@ -668,10 +811,6 @@ LASER(t).x = tx1: LASER(t).y = ty1
 LASER(t).X1 = tx1: LASER(t).X2 = tx2: LASER(t).Y1 = ty1: LASER(t).Y2 = ty2
 LASER(t).dir = tdir: LASER(t).shot = 0: LASER(t).onflag = tof
 LASER(t).typ = TempObjType
-IF TempObjType = 1 THEN PUT (tx1, ty1), LUP%
-IF TempObjType = 2 THEN PUT (tx1, ty1), LDN%
-IF TempObjType = 3 THEN PUT (tx1, ty1), LLT%
-IF TempObjType = 4 THEN PUT (tx1, ty1), LRT%
 Lasers = Lasers + 1
 
 CASE 5
@@ -692,8 +831,8 @@ CASE 10
 '*******
 INPUT #1, qdl
 INPUT #1, tmpstps
-FOR Z = 1 TO tmpstps
- INPUT #1, qx(qdl, Z), qy(qdl, Z)
+FOR z = 1 TO tmpstps
+ INPUT #1, qx(qdl, z), qy(qdl, z)
 NEXT
 INPUT #1, q(qdl).onflag
 INPUT #1, q(qdl).dir
@@ -712,18 +851,18 @@ tempmcomp = tempmcomp + 1
 INPUT #1, tx, ty
 INPUT #1, NumOfFF(tempmcomp)
 IF NumOfFF(tempmcomp) = 0 THEN INPUT #1, dummy
-FOR Z = 1 TO NumOfFF(tempmcomp)
-IF NumOfFF(tempmcomp) >= Z THEN INPUT #1, FFCH(tempmcomp, Z)
+FOR z = 1 TO NumOfFF(tempmcomp)
+IF NumOfFF(tempmcomp) >= z THEN INPUT #1, FFCH(tempmcomp, z)
 NEXT
 INPUT #1, NumOfL(tempmcomp)
 IF NumOfL(tempmcomp) = 0 THEN INPUT #1, dummy
-FOR Z = 1 TO NumOfL(tempmcomp)
-IF NumOfL(tempmcomp) >= Z THEN INPUT #1, LCH(tempmcomp, Z)
+FOR z = 1 TO NumOfL(tempmcomp)
+IF NumOfL(tempmcomp) >= z THEN INPUT #1, LCH(tempmcomp, z)
 NEXT
 INPUT #1, NumOfQd(tempmcomp)
 IF NumOfQd(tempmcomp) = 0 THEN INPUT #1, dummy
-FOR Z = 1 TO NumOfQd(tempmcomp)
-IF NumOfQd(tempmcomp) >= Z THEN INPUT #1, QCH(tempmcomp, Z)
+FOR z = 1 TO NumOfQd(tempmcomp)
+IF NumOfQd(tempmcomp) >= z THEN INPUT #1, QCH(tempmcomp, z)
 NEXT
 
 IF TempObjType = 6 THEN lx = 4: ly = 8
@@ -763,10 +902,10 @@ PSET (x, y), c
 LOOP
 2
 11
-IF GFXFILE$ = "LUP" THEN GET (0, 0)-(tx, ty), LUP%
-IF GFXFILE$ = "LDN" THEN GET (0, 0)-(tx, ty), LDN%
-IF GFXFILE$ = "LLT" THEN GET (0, 0)-(tx, ty), LLT%
-IF GFXFILE$ = "LRT" THEN GET (0, 0)-(tx, ty), LRT%
+IF GFXFILE$ = "LUP" THEN GET (0, 0)-(tx, ty), SPRITE.LASER%(1 * 145)'LUP%
+IF GFXFILE$ = "LDN" THEN GET (0, 0)-(tx, ty), SPRITE.LASER%(2 * 145)'LDN%
+IF GFXFILE$ = "LLT" THEN GET (0, 0)-(tx, ty), SPRITE.LASER%(3 * 145)'LLT%
+IF GFXFILE$ = "LRT" THEN GET (0, 0)-(tx, ty), SPRITE.LASER%(4 * 145)'LRT%
 IF GFXFILE$ = "UP1" THEN GET (0, 0)-(tx, ty), UP1%
 IF GFXFILE$ = "DN1" THEN GET (0, 0)-(tx, ty), DN1%
 IF GFXFILE$ = "LT1" THEN GET (0, 0)-(tx, ty), LT1%
@@ -802,10 +941,16 @@ Running = 1
 
 DO WHILE Running = 1
 
+        WAIT &H3DA, 8
+
+        curTime! = TIMER
+       
+        DEF SEG = &HA000
         IF kb(72) THEN MoveUp
         IF kb(75) THEN MoveLt
         IF kb(77) THEN MoveRt
         IF kb(80) THEN MoveDn
+        DEF SEG
 
 IF kb(16) THEN
  Running = 0
@@ -815,31 +960,56 @@ IF kb(17) THEN
  PassLevel
 END IF
 'IF UCASE$(a$) = "Q" THEN ShutDown
-'IF a$ = "+" THEN ShowCodes 2
 'IF a$ > "0" AND a$ < "Z" THEN KeyInpt a$
 IF a$ = CHR$(0) + "<" THEN SaveGame
-'IF a$ = "," THEN mainpause = mainpause - 10: MsgPut "Pauseloop" + STR$(mainpause) + "*100", 1
-'IF a$ = "." THEN mainpause = mainpause + 10: MsgPut "Pauseloop" + STR$(mainpause) + "*100", 1
 IF UCASE$(a$) = "S" THEN SndCtrl
+
+
+IF msg = 1 AND curTime! - msgt >= 2 THEN
+        msg = 0
+        redrawHUD = 1
+END IF
+
+IF msg = 0 AND health < 100 AND curTime! - ht >= 1 THEN
+ redrawHUD = 1
+ health = health + 1
+ ht = curTime!
+END IF
+
+
 UpdateLaser
 IF qdl > 0 THEN UpdateQuad
+
 UpdateSprites
 
+FOR z = 1 TO Lasers
+  'offs% = (LASER(z).typ * 145)
 
-' FOR z = 1 TO mainpause * 100: NEXT
 
-IF msg = 1 THEN IF TIMER - msgt >= 2 THEN MsgPut "", 0
-IF msg = 0 AND health < 100 AND TIMER - ht >= 1 THEN
- health = health + 1
- COLOR 3: LOCATE 1, 1: PRINT "Health: "; LTRIM$(RTRIM$(STR$(health))); "%"
- LINE (100, 0)-(200, 8), 4, B
- LINE (100, 0)-(100 + health, 8), 4, BF
- ht = TIMER
- IF health = 100 THEN LINE (0, 0)-(320, 9), 0, BF
- mf = 1
+  'PUT (LASER(z).x, LASER(z).y), SPRITE.LASER%(LASER(z).typ * 145), PSET
+  'PUT (LASER(z).x, LASER(z).y), SPRITE.LASER%(offs%), PSET
+
+'        LINE (LASER(z).x, LASER(z).y)-(LASER(z).x + 10, LASER(z).y + 10), 10, BF
+  'PUT2 LASER(z).x, LASER(z).y, VARSEG(SPRITE.LASER%(offs%)), VARPTR(SPRITE.LASER%(offs%))
+SELECT CASE LASER(z).typ
+CASE 1:
+  PUT2 LASER(z).x, LASER(z).y, VARSEG(SPRITE.LASER%(145)), VARPTR(SPRITE.LASER%(145))
+CASE 2:
+  PUT2 LASER(z).x, LASER(z).y, VARSEG(SPRITE.LASER%(145 * 2)), VARPTR(SPRITE.LASER%(145 * 2))
+CASE 3:
+  PUT2 LASER(z).x, LASER(z).y, VARSEG(SPRITE.LASER%(145 * 3)), VARPTR(SPRITE.LASER%(145 * 3))
+CASE 4:
+  PUT2 LASER(z).x, LASER(z).y, VARSEG(SPRITE.LASER%(145 * 4)), VARPTR(SPRITE.LASER%(145 * 4))
+END SELECT
+NEXT
+
+
+IF redrawHUD THEN
+        redrawHUD = 0
+        DrawHUD
 END IF
-WAIT &H3DA, 8
-WAIT &H3DA, 8, 8
+
+LOCATE 1: COLOR 15: PRINT kb(72); kb(80); kb(75); kb(77)
 LOOP
 END SUB
 
@@ -873,7 +1043,7 @@ CLS
 ' Load the arrow graphic
 PSET (0, 2), 32: PSET (1, 2), 33: PSET (2, 2), 34: PSET (3, 2), 35
 PSET (3, 1), 35: PSET (3, 3), 35: PSET (4, 2), 36
-GET (0, 0)-(5, 5), AR%
+GET (0, 0)-(6, 6), AR%
 
 '***************************
 ST:
@@ -881,6 +1051,7 @@ Main:
 CLS
 Main2:
 PUT (60, AY), AR%, XOR
+
 FOR PM = 1 TO 5
 IF PM = M THEN LOCATE PM + 9, 10: COLOR 14: PRINT MenuNames(PM)
 IF PM <> M THEN LOCATE PM + 9, 10: COLOR 32: PRINT MenuNames(PM)
@@ -916,6 +1087,7 @@ FOR MA = 1 TO 8
         PUT (60, AY), AR%, XOR
         t = TIMER: WHILE TIMER - t < .001: WEND
         PUT (60, AY), AR%, XOR
+
         IF td = 2 AND c >= 16 THEN c = c - 4: IF c <= 15 THEN c = 16: td = 1: GOTO pl1
         IF td = 1 AND c <= 32 THEN c = c + 4: IF c >= 32 THEN c = 31: td = 0
 
@@ -928,12 +1100,14 @@ GOTO Main2
 
 MenuDown:
 td = 2: c = 31
-PUT (60, AY), AR%, XOR
+'PUT (60, AY), AR%, XOR
 FOR MA = 1 TO 8
         AY = AY + 1
         PUT (60, AY), AR%, XOR
         t = TIMER: WHILE TIMER - t < .001: WEND
         PUT (60, AY), AR%, XOR
+
+
         IF td = 2 AND c >= 16 THEN c = c - 4: IF c <= 15 THEN c = 16: td = 1: GOTO pl2
         IF td = 1 AND c <= 32 THEN c = c + 4: IF c >= 32 THEN c = 31: td = 0
 
@@ -945,8 +1119,8 @@ M = M + 1
 GOTO Main2
 
 MenuRet:
-FOR Z = 31 TO 16 STEP -1
-        LOCATE 9 + M, 10: COLOR Z: PRINT MenuNames(M)
+FOR z = 31 TO 16 STEP -1
+        LOCATE 9 + M, 10: COLOR z: PRINT MenuNames(M)
         t = TIMER: WHILE TIMER - t < .001: WEND
 NEXT
 CLS
@@ -975,6 +1149,7 @@ EXIT SUB
 LoadGame:
 COLOR 32
 '***********
+
 OPEN "gfx\sm.gfx" FOR INPUT AS #1
 COLOR 32: LOCATE 1, 1: PRINT "#"; "   Name"; "      Level";
 FOR SI = 0 TO 9
@@ -992,8 +1167,8 @@ IF SN$(FB) = "*Nothing" THEN BEEP: GOTO ReStartLoad
 GOTO MLG
 '************************
 QL:
-FOR Z = 31 TO 16 STEP -1
-        LOCATE 16, 1: COLOR Z: PRINT "Enter 0-9>"
+FOR z = 31 TO 16 STEP -1
+        LOCATE 16, 1: COLOR z: PRINT "Enter 0-9>"
         t = TIMER: WHILE TIMER - t < .001: WEND
 NEXT
 GOTO ST
@@ -1001,8 +1176,8 @@ GOTO ST
 MLG:
 OPEN "LG.FLG" FOR OUTPUT AS #1: PRINT #1, FB: CLOSE
 OPEN "LW.CHK" FOR OUTPUT AS #1: PRINT #1, -1: CLOSE
-FOR Z = 31 TO 16 STEP -1
-        LOCATE 16, 1: COLOR Z: PRINT "Enter 0-9>"
+FOR z = 31 TO 16 STEP -1
+        LOCATE 16, 1: COLOR z: PRINT "Enter 0-9>"
         t = TIMER: WHILE TIMER - t < .001: WEND
 NEXT
 SYSTEM
@@ -1021,15 +1196,15 @@ QUITLOOP:
         GOTO QUITLOOP
 
 YQUIT:
-FOR Z = 31 TO 16 STEP -1
-        LOCATE 1, 1: COLOR Z: PRINT "QUIT??!!!! TYPE Y OR N"
+FOR z = 31 TO 16 STEP -1
+        LOCATE 1, 1: COLOR z: PRINT "QUIT??!!!! TYPE Y OR N"
         t = TIMER: WHILE TIMER - t < .001: WEND
 NEXT
 EXIT SUB
 
 NQUIT:
-FOR Z = 31 TO 16 STEP -1
-        LOCATE 1, 1: COLOR Z: PRINT "QUIT??!!!! TYPE Y OR N"
+FOR z = 31 TO 16 STEP -1
+        LOCATE 1, 1: COLOR z: PRINT "QUIT??!!!! TYPE Y OR N"
         t = TIMER: WHILE TIMER - t < .001: WEND
 NEXT
 GOTO ST
@@ -1161,8 +1336,8 @@ END IF
 
 CASE 4
 finishCount% = 0
-FOR i% = 1 TO 4
- IF SavedData.bonusLevels(i%) > 0 THEN finishCount% = finishCount% + 1
+FOR I% = 1 TO 4
+ IF SavedData.bonusLevels(I%) > 0 THEN finishCount% = finishCount% + 1
 NEXT
 
 IF finishCount% <> 4 THEN
@@ -1197,12 +1372,13 @@ END SUB
 SUB MoveDn
 IF y + 9 >= 200 THEN EXIT SUB
 
-FOR Z = x TO x + 7
-IF POINT(Z, y + 8) = 32 THEN GOTO cancel2
-IF POINT(Z, y + 8) = 28 THEN GOTO cancel2
-IF POINT(Z, y + 8) = 33 THEN PassLevel: GOTO cancel2
-IF POINT(Z, y + 8) = 5 THEN dir = 2: compentr Z, y + 8: EXIT SUB
-IF POINT(Z, y + 8) = 50 THEN HitChar 30: GOTO cancel2
+FOR z = x TO x + 7
+pt% = PEEK(z + (y + 8) * 320) 'POINT(z, y + 8)
+IF pt% = 32 THEN GOTO cancel2
+IF pt% = 28 THEN GOTO cancel2
+IF pt% = 33 THEN PassLevel: GOTO cancel2
+IF pt% = 5 THEN dir = 2: compentr z, y + 8: EXIT SUB
+IF pt% = 50 THEN HitChar 30: GOTO cancel2
 NEXT
 GotKey
 
@@ -1218,12 +1394,13 @@ END SUB
 SUB MoveLt
 IF x - 1 = -1 THEN EXIT SUB
 
-FOR Z = y TO y + 7
-IF POINT(x - 1, Z) = 32 THEN GOTO cancel3
-IF POINT(x - 1, Z) = 28 THEN GOTO cancel3
-IF POINT(x - 1, Z) = 33 THEN PassLevel: GOTO cancel3
-IF POINT(x - 1, Z) = 5 THEN dir = 3: compentr x - 1, Z: EXIT SUB
-IF POINT(x - 1, Z) = 50 THEN HitChar 30: GOTO cancel3
+FOR z = y TO y + 7
+pt% = POINT(x - 1, z)
+IF pt% = 32 THEN GOTO cancel3
+IF pt% = 28 THEN GOTO cancel3
+IF pt% = 33 THEN PassLevel: GOTO cancel3
+IF pt% = 5 THEN dir = 3: compentr x - 1, z: EXIT SUB
+IF pt% = 50 THEN HitChar 30: GOTO cancel3
 NEXT
 GotKey
 
@@ -1239,12 +1416,13 @@ END SUB
 SUB MoveRt
 IF x + 9 = 321 THEN EXIT SUB
 
-FOR Z = y TO y + 7
-IF POINT(x + 8, Z) = 32 THEN GOTO cancel4
-IF POINT(x + 8, Z) = 28 THEN GOTO cancel4
-IF POINT(x + 8, Z) = 33 THEN PassLevel: GOTO cancel4
-IF POINT(x + 8, Z) = 5 THEN dir = 4: compentr x + 8, Z: EXIT SUB
-IF POINT(x + 8, Z) = 50 THEN HitChar 30: GOTO cancel4
+FOR z = y TO y + 7
+pt% = POINT(x + 8, z)
+IF pt% = 32 THEN GOTO cancel4
+IF pt% = 28 THEN GOTO cancel4
+IF pt% = 33 THEN PassLevel: GOTO cancel4
+IF pt% = 5 THEN dir = 4: compentr x + 8, z: EXIT SUB
+IF pt% = 50 THEN HitChar 30: GOTO cancel4
 NEXT
 GotKey
 
@@ -1261,12 +1439,12 @@ END SUB
 SUB MoveUp
 IF y - 1 = 10 THEN EXIT SUB
 
-FOR Z = x TO x + 7
-IF POINT(Z, y - 1) = 32 THEN GOTO cancel1
-IF POINT(Z, y - 1) = 28 THEN GOTO cancel1
-IF POINT(Z, y - 1) = 33 THEN PassLevel: GOTO cancel1
-IF POINT(Z, y - 1) = 5 THEN dir = 1: compentr Z, y - 1: EXIT SUB
-IF POINT(Z, y - 1) = 50 THEN HitChar 30: GOTO cancel1
+FOR z = x TO x + 7
+pt% = PEEK(z + (y - 1) * 320)
+IF pt% = 32 OR pt = 28 THEN GOTO cancel1
+IF pt% = 33 THEN PassLevel: GOTO cancel1
+IF pt% = 5 THEN dir = 1: compentr z, y - 1: EXIT SUB
+IF pt% = 50 THEN HitChar 30: GOTO cancel1
 NEXT
 GotKey
 
@@ -1283,16 +1461,15 @@ SUB MsgPut (x$, flg)
 SELECT CASE flg
 CASE 0
 msg = 0
-LINE (0, 0)-(320, 9), 0, BF
 
 CASE 1
-LINE (0, 0)-(320, 9), 0, BF
-LOCATE 1, 1: COLOR 3: PRINT x$
+curMessage = x$
 msgt = TIMER
 msg = 1
 mf = 1
 END SELECT
 
+redrawHUD = 1
 END SUB
 
 SUB PassLevel
@@ -1303,11 +1480,11 @@ LINE (0, 0)-(320, 9), 0, BF
 IF sfx = 1 THEN SOUND 0, 5
 
 IF sfx = 1 THEN
- FOR Z = 100 TO 4000 STEP 500: SOUND Z, .5: NEXT
- FOR Z = 37 TO 400 STEP 5: SOUND Z, .05: NEXT
- FOR Z = 200 TO 600 STEP 5: SOUND Z, .05: NEXT
- FOR Z = 400 TO 800 STEP 5: SOUND Z, .05: NEXT
- FOR Z = 600 TO 1000 STEP 5: SOUND Z, .05: NEXT
+ FOR z = 100 TO 4000 STEP 500: SOUND z, .5: NEXT
+ FOR z = 37 TO 400 STEP 5: SOUND z, .05: NEXT
+ FOR z = 200 TO 600 STEP 5: SOUND z, .05: NEXT
+ FOR z = 400 TO 800 STEP 5: SOUND z, .05: NEXT
+ FOR z = 600 TO 1000 STEP 5: SOUND z, .05: NEXT
 END IF
 X1 = 0: X2 = 320
 Y1 = 0: Y2 = 200
@@ -1342,6 +1519,120 @@ END IF
 
 END SUB
 
+SUB PlaySFX (sfxNum AS INTEGER)
+IF sfx = 0 THEN EXIT SUB
+SELECT CASE sfxNum
+
+CASE 1 ' Key pick up
+FOR z2 = 500 TO 4000 STEP 500: SOUND z2, .1: SOUND z2 + 500, .1: NEXT
+
+END SELECT
+END SUB
+
+SUB README
+th = 70
+I$ = "I n s t r u c t i o n s"
+
+FOR z = 1 TO th
+x$ = STRING$((80 - LEN(help$(z))), " ")
+help$(z) = help$(z) + x$
+NEXT
+
+TitleCDir = 1: TitleC = 0: TitleCT = TIMER
+INL = 1: INTIMER = TIMER
+SCREEN 0, 0, 0: WIDTH 80: COLOR 1, 0: CLS
+GOTO lnup
+topline = 1
+ml:
+a$ = INKEY$
+IF a$ = CHR$(0) + "H" THEN GOTO lnup
+IF a$ = CHR$(0) + "P" THEN GOTO lndn
+IF a$ = " " THEN
+        SCREEN 0, 0, 0: WIDTH 80: COLOR 7, 0: CLS
+        EXIT SUB
+END IF
+
+IF TIMER - TitleCT >= .2 THEN GOSUB UpdateTitle
+IF TIMER - INTIMER >= .5 THEN GOSUB UpdateINLogo
+GOTO ml
+
+lnup:
+topline = topline - 1
+IF topline < 1 THEN topline = 1
+temp = topline
+FOR z = 9 TO 25
+LOCATE z, 1: COLOR helpcol(temp): PRINT help$(temp);
+
+IF help$(temp) = "" THEN
+LOCATE z, 1: COLOR helpcol(temp): PRINT STRING$(80, " ");
+END IF
+
+temp = temp + 1
+NEXT
+GOTO ml
+
+lndn:
+IF topline + 1 + 18 >= 73 THEN topline = topline - 1: GOTO ml
+topline = topline + 1
+temp = topline
+FOR z = 9 TO 25
+LOCATE z, 1: COLOR helpcol(temp): PRINT help$(temp);
+IF help$(temp) = "" THEN
+LOCATE z, 1: COLOR helpcol(temp): PRINT STRING$(80, " ");
+END IF
+
+temp = temp + 1
+NEXT
+GOTO ml
+
+UpdateINLogo:
+FOR z = 1 TO 24
+ IF z = INL THEN LOCATE 8, 27 + z: COLOR 14: PRINT MID$(I$, z, 1)
+ IF z <> INL THEN LOCATE 8, 27 + z: COLOR 9: PRINT MID$(I$, z, 1)
+NEXT
+
+INL = INL + 2
+IF INL = 25 THEN INL = 1
+INTIMER = TIMER
+RETURN
+
+
+UpdateTitle:
+
+TitleCT = TIMER
+IF TitleCDir = 1 THEN
+ IF TitleC = 0 THEN TitleC = 8: GOTO nc
+ IF TitleC = 8 THEN TitleC = 1: GOTO nc
+ IF TitleC = 1 THEN TitleC = 9: GOTO nc
+ IF TitleC = 9 THEN TitleC = 15: TitleCT = TIMER + 2
+nc:
+END IF
+
+IF TitleCDir = 2 THEN
+ IF TitleC = 15 THEN TitleC = 9: GOTO nc2
+ IF TitleC = 9 THEN TitleC = 1: GOTO nc2
+ IF TitleC = 1 THEN TitleC = 8: GOTO nc2
+ IF TitleC = 8 THEN TitleC = 0
+nc2:
+END IF
+IF TitleCDir = 1 AND TitleC = 15 THEN TitleCDir = 2
+IF TitleCDir = 2 AND TitleC = 0 THEN TitleCDir = 1
+
+LOCATE 1, 1: COLOR TitleC
+
+PRINT "         EEEEEEE    SSSSS   CCCCCC   AAAAA    PPPPPP   EEEEEEE"
+PRINT "         E         S       C        A     A   P     P  E"
+PRINT "         E         S       C        A     A   P     P  E"
+PRINT "         EEEEEEE    SSSS   C        A     A   PPPPPP   EEEEEEE"
+PRINT "         E              S  C        AAAAAAA   P        E      "
+PRINT "         E              S  C        A     A   P        E"
+PRINT "         EEEEEEE   SSSSS    CCCCCC  A     A   P        EEEEEEE"
+
+RETURN
+
+
+END SUB
+
 SUB RunComp (t)
 
 FOR z2 = 1 TO NumOfFF(t)
@@ -1365,50 +1656,50 @@ dobj:
 SELECT CASE pp
 
 CASE 1 TO 4
-Z = LCH(t, z2)
+z = LCH(t, z2)
 
-IF LASER(Z).onflag = 0 THEN LASER(Z).onflag = 1 ELSE LASER(Z).onflag = 0
+IF LASER(z).onflag = 0 THEN LASER(z).onflag = 1 ELSE LASER(z).onflag = 0
 
-IF LASER(Z).onflag = 1 THEN
- DisLas Z, 0, 1
+IF LASER(z).onflag = 1 THEN
+ DisLas z, 0, 1
  IF sfx = 1 THEN FOR zz = 300 TO 600 STEP 50: SOUND zz, .5: SOUND zz + 100, .5: NEXT
 END IF
 
-IF LASER(Z).onflag = 0 THEN
-DisLas Z, 28, 1
+IF LASER(z).onflag = 0 THEN
+DisLas z, 28, 1
 IF sfx = 1 THEN FOR zz = 600 TO 300 STEP -50: SOUND zz, .5: SOUND zz + 100, .5: NEXT
 END IF
 
 CASE 7
-Z = FFCH(t, z2)
-tempx1 = FF(Z).X1
-tempx2 = FF(Z).X2
-tempy1 = FF(Z).Y1
-tempy2 = FF(Z).Y2
-IF FF(Z).onflag = 0 THEN FF(Z).onflag = 1 ELSE FF(Z).onflag = 0
+z = FFCH(t, z2)
+tempx1 = FF(z).X1
+tempx2 = FF(z).X2
+tempy1 = FF(z).Y1
+tempy2 = FF(z).Y2
+IF FF(z).onflag = 0 THEN FF(z).onflag = 1 ELSE FF(z).onflag = 0
 
-IF FF(Z).onflag = 0 THEN
+IF FF(z).onflag = 0 THEN
 LINE (tempx1, tempy1)-(tempx2, tempy2), 0
 IF sfx = 1 THEN FOR zz = 800 TO 37 STEP -5: SOUND zz, .05: SOUND zz + 145, .05: SOUND zz + 80, .05: NEXT
 END IF
 
 
-IF FF(Z).onflag = 1 THEN
+IF FF(z).onflag = 1 THEN
 LINE (tempx1, tempy1)-(tempx2, tempy2), 50
 IF sfx = 1 THEN FOR zz = 37 TO 800 STEP 5: SOUND zz, .05: SOUND zz + 145, .05: SOUND zz + 80, .05: NEXT
 END IF
 
 CASE 10
-Z = QCH(t, z2)
-IF q(Z).onflag = 0 THEN q(Z).onflag = 1 ELSE q(Z).onflag = 0
+z = QCH(t, z2)
+IF q(z).onflag = 0 THEN q(z).onflag = 1 ELSE q(z).onflag = 0
 
-IF q(Z).onflag = 1 THEN
- DisLas Z, 0, 2
+IF q(z).onflag = 1 THEN
+ DisLas z, 0, 2
  IF sfx = 1 THEN FOR zz = 500 TO 100 STEP -50: SOUND zz, .1: SOUND 1100 - zz, .1: NEXT
 END IF
 
-IF q(Z).onflag = 0 THEN
- DisLas Z, 28, 2
+IF q(z).onflag = 0 THEN
+ DisLas z, 28, 2
  IF sfx = 1 THEN FOR zz = 100 TO 500 STEP 50: SOUND zz, .1: SOUND 1100 - zz, .1: NEXT
 END IF
 
@@ -1432,7 +1723,7 @@ n$ = LEFT$(n$, 8)
 n$ = n$ + SPACE$(8 - LEN(n$))
 OPEN "GFX\SM.gfx" FOR INPUT AS #1
 OPEN "GFX\SM2.gfx" FOR OUTPUT AS #2
-FOR Z = 0 TO 9
+FOR z = 0 TO 9
  INPUT #1, null, n2$, tlevel, thealth
  IF null = SN THEN
   PRINT #2, LTRIM$(STR$(null)) + CHR$(44) + CHR$(34) + n$ + CHR$(34) + CHR$(44) + LTRIM$(STR$(Level)) + CHR$(44) + LTRIM$(STR$(health))
@@ -1460,7 +1751,7 @@ END SUB
 SUB SetItems
 Lives = 3
 'ERASE obj
-FOR Z = 1 TO 5: keys(Z) = 0: NEXT
+FOR z = 1 TO 5: keys(z) = 0: NEXT
 END SUB
 
 SUB ShootLaser (t)
@@ -1573,7 +1864,7 @@ IF POINT(tx, ty - 1) <> 0 THEN GOTO ebeam1
 gb1:
 LINE (tx, ty)-(tx, ty + 4), 0
 ty = ty - 1
-PUT (tx, ty), LV%
+PUT2 tx, ty, VARSEG(LV%(0)), VARPTR(LV%(0))
 
 CASE 2
 IF tx >= x AND tx < x + 8 AND ty + 5 >= y AND ty + 5 < y + 8 THEN HitChar 10: GOTO ebeam1
@@ -1582,7 +1873,7 @@ IF POINT(tx, ty + 5) <> 0 THEN GOTO ebeam1
 gb2:
 LINE (tx, ty)-(tx, ty + 4), 0
 ty = ty + 1
-PUT (tx, ty), LV%
+PUT2 tx, ty, VARSEG(LV%(0)), VARPTR(LV%(0))
 
 CASE 3
 IF tx >= x AND tx < x + 8 AND ty >= y AND ty < y + 8 THEN HitChar 10: GOTO ebeam2
@@ -1591,7 +1882,7 @@ IF POINT(tx - 1, ty) <> 0 THEN GOTO ebeam2
 gb3:
 LINE (tx, ty)-(tx + 4, ty), 0
 tx = tx - 1
-PUT (tx, ty), LH%
+PUT2 tx, ty, VARSEG(LH%(0)), VARPTR(LH%(0))
 
 CASE 4
 IF tx + 5 >= x AND tx + 5 < x + 8 AND ty >= y AND ty < y + 8 THEN HitChar 10: GOTO ebeam2
@@ -1600,7 +1891,7 @@ IF POINT(tx + 5, ty) <> 0 THEN GOTO ebeam2
 gb4:
 LINE (tx, ty)-(tx + 4, ty), 0
 tx = tx + 1
-PUT (tx, ty), LH%
+PUT2 tx, ty, VARSEG(LH%(0)), VARPTR(LH%(0))
 
 END SELECT
 
@@ -1623,77 +1914,72 @@ GOTO roub
 END SUB
 
 SUB UpdateLaser
-FOR Z = 1 TO Lasers
+FOR z = 1 TO Lasers
 rsl:
-IF LASER(Z).onflag = 0 THEN GOTO nextlaser
-temp = LASER(Z).dir
-temp2 = LASER(Z).x
-temp3 = LASER(Z).y
+IF LASER(z).onflag = 0 THEN GOTO nextlaser
+temp = LASER(z).dir
+temp2 = LASER(z).x
+temp3 = LASER(z).y
 
-LASER(Z).dir = temp
-IF LASER(Z).dir = 1 THEN GOTO L.UP
-IF LASER(Z).dir = 2 THEN GOTO L.DN
-IF LASER(Z).dir = 3 THEN GOTO L.LT
-IF LASER(Z).dir = 4 THEN GOTO L.RT
+LASER(z).dir = temp
+
+IF LASER(z).dir = 1 THEN GOTO L.UP
+IF LASER(z).dir = 2 THEN GOTO L.DN
+IF LASER(z).dir = 3 THEN GOTO L.LT
+IF LASER(z).dir = 4 THEN GOTO L.RT
 
 nextlaser:
-IF LASER(Z).shot = 0 THEN ShootLaser Z
-IF LASER(Z).shot = 1 THEN UpdateBeam Z
+
+
+IF LASER(z).shot = 0 THEN ShootLaser z
+IF LASER(z).shot = 1 THEN UpdateBeam z
 NEXT
 EXIT SUB
 
 L.UP:
-IF LASER(Z).y - 1 = LASER(Z).Y1 THEN LASER(Z).dir = 2: GOTO nextlaser
-IF LASER(Z).y - 1 = LASER(Z).Y2 THEN LASER(Z).dir = 2: GOTO nextlaser
-LINE (LASER(Z).x, LASER(Z).y)-(LASER(Z).x + 7, LASER(Z).y + 10), 0, BF
-LASER(Z).y = LASER(Z).y - 1
-IF LASER(Z).typ = 3 THEN PUT (LASER(Z).x, LASER(Z).y), LLT%
-IF LASER(Z).typ = 4 THEN PUT (LASER(Z).x, LASER(Z).y), LRT%
+IF LASER(z).y - 1 = LASER(z).Y1 THEN LASER(z).dir = 2: GOTO nextlaser
+IF LASER(z).y - 1 = LASER(z).Y2 THEN LASER(z).dir = 2: GOTO nextlaser
+LINE (LASER(z).x, LASER(z).y)-(LASER(z).x + 7, LASER(z).y + 10), 0, BF
+LASER(z).y = LASER(z).y - 1
 GOTO nextlaser
 
 L.DN:
-IF LASER(Z).y + 1 = LASER(Z).Y1 THEN LASER(Z).dir = 1: GOTO nextlaser
-IF LASER(Z).y + 1 = LASER(Z).Y2 THEN LASER(Z).dir = 1: GOTO nextlaser
-LINE (LASER(Z).x, LASER(Z).y)-(LASER(Z).x + 7, LASER(Z).y + 10), 0, BF
-LASER(Z).y = LASER(Z).y + 1
-IF LASER(Z).typ = 3 THEN PUT (LASER(Z).x, LASER(Z).y), LLT%
-IF LASER(Z).typ = 4 THEN PUT (LASER(Z).x, LASER(Z).y), LRT%
+IF LASER(z).y + 1 = LASER(z).Y1 THEN LASER(z).dir = 1: GOTO nextlaser
+IF LASER(z).y + 1 = LASER(z).Y2 THEN LASER(z).dir = 1: GOTO nextlaser
+LINE (LASER(z).x, LASER(z).y)-(LASER(z).x + 7, LASER(z).y + 10), 0, BF
+LASER(z).y = LASER(z).y + 1
 GOTO nextlaser
 
 L.LT:
-IF LASER(Z).x - 1 = LASER(Z).X1 THEN LASER(Z).dir = 4: GOTO nextlaser
-IF LASER(Z).x - 1 = LASER(Z).X2 THEN LASER(Z).dir = 4: GOTO nextlaser
-LINE (LASER(Z).x, LASER(Z).y)-(LASER(Z).x + 10, LASER(Z).y + 7), 0, BF
-LASER(Z).x = LASER(Z).x - 1
-IF LASER(Z).typ = 1 THEN PUT (LASER(Z).x, LASER(Z).y), LUP%
-IF LASER(Z).typ = 2 THEN PUT (LASER(Z).x, LASER(Z).y), LDN%
+IF LASER(z).x - 1 = LASER(z).X1 THEN LASER(z).dir = 4: GOTO nextlaser
+IF LASER(z).x - 1 = LASER(z).X2 THEN LASER(z).dir = 4: GOTO nextlaser
+LINE (LASER(z).x, LASER(z).y)-(LASER(z).x + 10, LASER(z).y + 7), 0, BF
+LASER(z).x = LASER(z).x - 1
 GOTO nextlaser
 
 L.RT:
-IF LASER(Z).x + 1 = LASER(Z).X1 THEN LASER(Z).dir = 3: GOTO nextlaser
-IF LASER(Z).x + 1 = LASER(Z).X2 THEN LASER(Z).dir = 3: GOTO nextlaser
-LINE (LASER(Z).x, LASER(Z).y)-(LASER(Z).x + 10, LASER(Z).y + 7), 0, BF
-LASER(Z).x = LASER(Z).x + 1
-IF LASER(Z).typ = 1 THEN PUT (LASER(Z).x, LASER(Z).y), LUP%
-IF LASER(Z).typ = 2 THEN PUT (LASER(Z).x, LASER(Z).y), LDN%
+IF LASER(z).x + 1 = LASER(z).X1 THEN LASER(z).dir = 3: GOTO nextlaser
+IF LASER(z).x + 1 = LASER(z).X2 THEN LASER(z).dir = 3: GOTO nextlaser
+LINE (LASER(z).x, LASER(z).y)-(LASER(z).x + 10, LASER(z).y + 7), 0, BF
+LASER(z).x = LASER(z).x + 1
 GOTO nextlaser
 
 END SUB
 
 SUB UpdateQBeam (t)
 
-FOR Z = 1 TO 4
-tx = qsx(Z, t)
-ty = qsy(Z, t)
-IF qs(Z, t) = 1 THEN GOTO mql
+FOR z = 1 TO 4
+tx = qsx(z, t)
+ty = qsy(z, t)
+IF qs(z, t) = 1 THEN GOTO mql
 nq1:
-qsx(Z, t) = tx
-qsy(Z, t) = ty
+qsx(z, t) = tx
+qsy(z, t) = ty
 NEXT
 
 EXIT SUB
 mql:
-SELECT CASE Z
+SELECT CASE z
 CASE 1
 
 uup:
@@ -1741,96 +2027,83 @@ GOTO nq1
 
 ebeam3:
 LINE (tx, ty)-(tx, ty + 4), 0
-qs(Z, t) = 0
+qs(z, t) = 0
 GOTO nq1
 
 ebeam4:
 LINE (tx + 4, ty)-(tx, ty), 0
-qs(Z, t) = 0
+qs(z, t) = 0
 
 GOTO nq1
 
 END SUB
 
 SUB UpdateQuad
-FOR Z = 1 TO qdl
-IF q(Z).onflag = 0 THEN GOTO nextquad
-s1 = q(Z).stp
-IF q(Z).dir = 1 THEN GOTO qup
-IF q(Z).dir = 2 THEN GOTO qdn
-IF q(Z).dir = 3 THEN GOTO qlt
-IF q(Z).dir = 4 THEN GOTO qrt
+FOR z = 1 TO qdl
+IF q(z).onflag = 0 THEN GOTO nextquad
+s1 = q(z).stp
+IF q(z).dir = 1 THEN GOTO qup
+IF q(z).dir = 2 THEN GOTO qdn
+IF q(z).dir = 3 THEN GOTO qlt
+IF q(z).dir = 4 THEN GOTO qrt
 nextquad:
-ShootQuad Z
-UpdateQBeam Z
+ShootQuad z
+UpdateQBeam z
 NEXT
 EXIT SUB
 
 '*******
 qup:
-IF q(Z).y = qy(Z, s1) AND q(Z).x = qx(Z, s1) THEN GOTO changedir
-LINE (q(Z).x, q(Z).y)-(q(Z).x + 5, q(Z).y + 5), 0, BF
-q(Z).y = q(Z).y - 1
-PUT (q(Z).x, q(Z).y), QUAD%
+IF q(z).y = qy(z, s1) AND q(z).x = qx(z, s1) THEN GOTO changedir
+LINE (q(z).x, q(z).y)-(q(z).x + 5, q(z).y + 5), 0, BF
+q(z).y = q(z).y - 1
+PUT (q(z).x, q(z).y), QUAD%
 GOTO nextquad
 
 qdn:
-IF q(Z).y = qy(Z, s1) AND q(Z).x = qx(Z, s1) THEN GOTO changedir
-LINE (q(Z).x, q(Z).y)-(q(Z).x + 5, q(Z).y + 5), 0, BF
-q(Z).y = q(Z).y + 1
-PUT (q(Z).x, q(Z).y), QUAD%
+IF q(z).y = qy(z, s1) AND q(z).x = qx(z, s1) THEN GOTO changedir
+LINE (q(z).x, q(z).y)-(q(z).x + 5, q(z).y + 5), 0, BF
+q(z).y = q(z).y + 1
+PUT (q(z).x, q(z).y), QUAD%
 GOTO nextquad
 
 qlt:
-IF q(Z).x = qx(Z, s1) AND q(Z).y = qy(Z, s1) THEN GOTO changedir
-LINE (q(Z).x, q(Z).y)-(q(Z).x + 5, q(Z).y + 5), 0, BF
-q(Z).x = q(Z).x - 1
-PUT (q(Z).x, q(Z).y), QUAD%
+IF q(z).x = qx(z, s1) AND q(z).y = qy(z, s1) THEN GOTO changedir
+LINE (q(z).x, q(z).y)-(q(z).x + 5, q(z).y + 5), 0, BF
+q(z).x = q(z).x - 1
+PUT (q(z).x, q(z).y), QUAD%
 GOTO nextquad
 
 qrt:
-IF q(Z).x = qx(Z, s1) AND q(Z).y = qy(Z, s1) THEN GOTO changedir
-LINE (q(Z).x, q(Z).y)-(q(Z).x + 5, q(Z).y + 5), 0, BF
-q(Z).x = q(Z).x + 1
-PUT (q(Z).x, q(Z).y), QUAD%
+IF q(z).x = qx(z, s1) AND q(z).y = qy(z, s1) THEN GOTO changedir
+LINE (q(z).x, q(z).y)-(q(z).x + 5, q(z).y + 5), 0, BF
+q(z).x = q(z).x + 1
+PUT (q(z).x, q(z).y), QUAD%
 GOTO nextquad
 
 changedir:
 s2 = s1 + 1
-IF s2 > q(Z).totstps THEN s2 = 2
-IF qx(Z, s2) = q(Z).x AND qy(Z, s2) < q(Z).y THEN q(Z).dir = 1: GOTO nq2
-IF qx(Z, s2) = q(Z).x AND qy(Z, s2) > q(Z).y THEN q(Z).dir = 2: GOTO nq2
-IF qx(Z, s2) < q(Z).x AND qy(Z, s2) = q(Z).y THEN q(Z).dir = 3: GOTO nq2
-IF qx(Z, s2) > q(Z).x AND qy(Z, s2) = q(Z).y THEN q(Z).dir = 4
+IF s2 > q(z).totstps THEN s2 = 2
+IF qx(z, s2) = q(z).x AND qy(z, s2) < q(z).y THEN q(z).dir = 1: GOTO nq2
+IF qx(z, s2) = q(z).x AND qy(z, s2) > q(z).y THEN q(z).dir = 2: GOTO nq2
+IF qx(z, s2) < q(z).x AND qy(z, s2) = q(z).y THEN q(z).dir = 3: GOTO nq2
+IF qx(z, s2) > q(z).x AND qy(z, s2) = q(z).y THEN q(z).dir = 4
 nq2:
-q(Z).stp = q(Z).stp + 1
-IF q(Z).stp > q(Z).totstps THEN q(Z).stp = 2
+q(z).stp = q(z).stp + 1
+IF q(z).stp > q(z).totstps THEN q(z).stp = 2
 GOTO nextquad
 END SUB
 
 SUB UpdateSprites
-FOR Z = 1 TO 5
-IF KeyX(Z) <> 0 AND KeyY(Z) <> 0 THEN
-        PUT (KeyX(Z), KeyY(Z)), CB%, PSET
+FOR z = 1 TO 5
+IF KeyX(z) <> 0 AND KeyY(z) <> 0 THEN
+        PUT (KeyX(z), KeyY(z)), CB%, PSET
 END IF
 NEXT
-
-IF msg = 0 AND health > 99 AND mf = 1 THEN
-
-FOR Z = 1 TO 5
- IF keys(Z) = 1 THEN
-  COLOR 2
-  LOCATE 1, Z
-  PRINT LTRIM$(RTRIM$(STR$(Z)))
- END IF
-NEXT
-
-mf = 0
-END IF
 
 IF TIMER - ffu >= 2 THEN
-        FOR Z = 1 TO FFN
-         IF FF(Z).onflag = 1 THEN LINE (FF(Z).X1, FF(Z).Y1)-(FF(Z).X2, FF(Z).Y2), 50
+        FOR z = 1 TO FFN
+         IF FF(z).onflag = 1 THEN LINE (FF(z).X1, FF(z).Y1)-(FF(z).X2, FF(z).Y2), 50
         NEXT
         ffu = TIMER
 END IF
