@@ -197,6 +197,7 @@ DO
        
         SELECT CASE MenuChoice%
         CASE 1:
+                EraseVars
                 SetItems
                 Level% = MenuLevelWarp%
                 LevelIntro
